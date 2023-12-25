@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
-type QrCodeMode string
+type QrMode string
 type QrErrCorrectionLvl string
 type QrVersion int
 type QrModeIndicator byte
@@ -14,9 +16,9 @@ const INVALID_IDX = -1
 const EMPTY_STRING = ""
 
 const (
-	NUMERIC       QrCodeMode = "numeric"
-	ALPHA_NUMERIC QrCodeMode = "alpha"
-	BYTE          QrCodeMode = "byte"
+	NUMERIC       QrMode = "numeric"
+	ALPHA_NUMERIC QrMode = "alpha"
+	BYTE          QrMode = "byte"
 )
 
 const (
@@ -41,7 +43,7 @@ const (
 	BYTE_INDICATOR          QrModeIndicator = 0b0100
 )
 
-var patterns = map[QrCodeMode]string{
+var patterns = map[QrMode]string{
 	NUMERIC:       "^\\d+$",
 	ALPHA_NUMERIC: "^[\\dA-Z $%*+\\-./:]+$",
 	BYTE:          "^[\\x00-\\xff]+$",
@@ -80,19 +82,37 @@ var capacities = map[QrVersion]map[QrErrCorrectionLvl][]int{
 	},
 }
 
-var modeIndicators = map[QrCodeMode]QrModeIndicator{
+var modeIndicators = map[QrMode]QrModeIndicator{
 	NUMERIC:       NUMERIC_INDICATOR,
 	ALPHA_NUMERIC: ALPHA_NUMERIC_INDICATOR,
 	BYTE:          BYTE_INDICATOR,
 }
 
-var modeToIndex = map[QrCodeMode]int{
+var modeToIndex = map[QrMode]int{
 	NUMERIC:       0,
 	ALPHA_NUMERIC: 1,
 	BYTE:          2,
 }
 
-func GetMode(s string) (QrCodeMode, error) {
+type QrEncoder interface {
+	GetMode(s string) (QrMode, error)
+	GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrVersion, error)
+	GetModeIndicator(mode QrMode) QrModeIndicator
+	GetCountIndicator(s string, version QrVersion, mode QrMode) (string, error)
+	Encode(s string) string
+}
+
+type Encoder struct {
+	splitCount int
+}
+
+func NewEncoder() QrEncoder {
+	return &Encoder{
+		splitCount: 3,
+	}
+}
+
+func (e *Encoder) GetMode(s string) (QrMode, error) {
 	if matched, _ := regexp.MatchString(patterns[NUMERIC], s); matched {
 		return NUMERIC, nil
 	}
@@ -105,14 +125,14 @@ func GetMode(s string) (QrCodeMode, error) {
 		return BYTE, nil
 	}
 
-	return QrCodeMode(EMPTY_STRING), fmt.Errorf("Invalid input pattern")
+	return QrMode(EMPTY_STRING), fmt.Errorf("Invalid input pattern")
 }
 
-func GetSmallestVersion(s string, mode QrCodeMode, level QrErrCorrectionLvl) (QrVersion, error) {
+func (e *Encoder) GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrVersion, error) {
 	version := 1
 
 	for version <= len(capacities) {
-		if len(s) <= capacities[QrVersion(version)][level][modeToIndex[mode]] {
+		if len(s) <= capacities[QrVersion(version)][lvl][modeToIndex[mode]] {
 			return QrVersion(version), nil
 		}
 		version += 1
@@ -121,11 +141,35 @@ func GetSmallestVersion(s string, mode QrCodeMode, level QrErrCorrectionLvl) (Qr
 	return QrVersion(INVALID_IDX), fmt.Errorf("Cannot compute QR version")
 }
 
-func GetModeIndicator(mode QrCodeMode) QrModeIndicator {
+func (e *Encoder) GetModeIndicator(mode QrMode) QrModeIndicator {
 	return modeIndicators[mode]
 }
 
-func GetCountIndicatorLength(version QrVersion, mode QrCodeMode) (int, error) {
+func (e *Encoder) GetCountIndicator(s string, version QrVersion, mode QrMode) (string, error) {
+	cntIndicatorLen, err := e.getCountIndicatorLen(version, mode)
+
+	if err != nil {
+		return EMPTY_STRING, err
+	}
+
+	sLenBinary := strconv.FormatInt(int64(len(s)), 2)
+	return strings.Repeat("0", cntIndicatorLen-len(sLenBinary)), nil
+}
+
+func (e *Encoder) Encode(s string) string {
+	groups := e.splitInGroups(s, e.splitCount)
+	result := make([]string, len(groups))
+
+	for index, group := range groups {
+		numericValue, _ := strconv.Atoi(group)
+		binaryValue := strconv.FormatInt(int64(numericValue), 2)
+		result[index] = binaryValue
+	}
+
+	return strings.Join(result, "")
+}
+
+func (e *Encoder) getCountIndicatorLen(version QrVersion, mode QrMode) (int, error) {
 	// Extend this functionality for further versions support
 	if VERSION_1 <= version && version <= VERSION_5 {
 		switch mode {
@@ -139,6 +183,28 @@ func GetCountIndicatorLength(version QrVersion, mode QrCodeMode) (int, error) {
 	}
 
 	return 0, fmt.Errorf("Cannot compute QR Count Indicator length")
+}
+
+func (e *Encoder) splitInGroups(s string, n int) []string {
+	var result []string
+	count := 0
+	start := 0
+
+	for i := 0; i < len(s); i++ {
+		count += 1
+
+		if count == n {
+			result = append(result, s[start:i+1])
+			start = i + 1
+			count = 0
+		}
+	}
+
+	if start < len(s) {
+		result = append(result, s[start:])
+	}
+
+	return result
 }
 
 func main() {
