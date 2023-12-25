@@ -28,7 +28,7 @@ func TestNumericInputOnly(t *testing.T) {
 
 	input = ""
 	actual, _ = GetMode(input)
-	assert.Equal(INVALID, actual, "Input pattern should be invalid")
+	assert.Equal(INVALID_MODE, actual, "Input pattern should be invalid")
 }
 
 func TestAlphaNumericInputOnly(t *testing.T) {
@@ -53,7 +53,7 @@ func TestAlphaNumericInputOnly(t *testing.T) {
 
 	input = ""
 	actual, _ = GetMode(input)
-	assert.Equal(INVALID, actual, "Input pattern should be invalid")
+	assert.Equal(INVALID_MODE, actual, "Input pattern should be invalid")
 }
 
 func TestByteInputOnly(t *testing.T) {
@@ -70,5 +70,26 @@ func TestByteInputOnly(t *testing.T) {
 
 	input = ""
 	actual, _ = GetMode(input)
-	assert.Equal(INVALID, actual, "Input pattern should be invalud")
+	assert.Equal(INVALID_MODE, actual, "Input pattern should be invalud")
+}
+
+func TestComputeQrVersion(t *testing.T) {
+	assert := assert.New(t)
+	var input string
+
+	input = "HELLO WORLD"
+	actual, _ := GetSmallestVersion(input, QUARTILE)
+	assert.Equal(VERSION_1, actual, "Input should be version 1")
+
+	input = "HELLO THERE WORLD"
+	actual, _ = GetSmallestVersion(input, QUARTILE)
+	assert.Equal(VERSION_2, actual, "Input should be version 2")
+
+	input = "12345"
+	actual, _ = GetSmallestVersion(input, MEDIUM)
+	assert.Equal(VERSION_1, actual, "Input should be version 1")
+
+	input = "https://www.google.com"
+	actual, _ = GetSmallestVersion(input, HIGH)
+	assert.Equal(VERSION_3, actual, "Input should be version 3")
 }
