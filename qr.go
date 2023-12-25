@@ -125,5 +125,21 @@ func GetModeIndicator(mode QrCodeMode) QrModeIndicator {
 	return modeIndicators[mode]
 }
 
+func GetCountIndicatorLength(version QrVersion, mode QrCodeMode) (int, error) {
+	// Extend this functionality for further versions support
+	if VERSION_1 <= version && version <= VERSION_5 {
+		switch mode {
+		case NUMERIC:
+			return 10, nil
+		case ALPHA_NUMERIC:
+			return 9, nil
+		case BYTE:
+			return 8, nil
+		}
+	}
+
+	return 0, fmt.Errorf("Cannot compute QR Count Indicator length")
+}
+
 func main() {
 }

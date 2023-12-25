@@ -133,3 +133,30 @@ func TestGetModeIndicator(t *testing.T) {
 	actual = GetModeIndicator(mode)
 	assert.Equal(BYTE_INDICATOR, actual, "Input should have a byte indicator")
 }
+
+func TestGetCountIndicatorLength(t *testing.T) {
+	assert := assert.New(t)
+	var input string
+	var err error
+
+	input = "1234"
+	mode, _ := GetMode(input)
+	version, _ := GetSmallestVersion(input, mode, QUARTILE)
+	actual, _ := GetCountIndicatorLength(version, mode)
+	assert.Equal(10, actual, "Input should have a count indicator length of 9 bits")
+
+	input = "HELLO WORLD"
+	mode, _ = GetMode(input)
+	version, _ = GetSmallestVersion(input, mode, QUARTILE)
+	actual, _ = GetCountIndicatorLength(version, mode)
+	assert.Equal(9, actual, "Input should have a count indicator length of 10 bits")
+
+	input = "Hello, there!"
+	mode, _ = GetMode(input)
+	version, _ = GetSmallestVersion(input, mode, QUARTILE)
+	actual, _ = GetCountIndicatorLength(version, mode)
+	assert.Equal(8, actual, "Input should have a count indicator length of 8 bits")
+
+	_, err = GetCountIndicatorLength(QrVersion(6), BYTE)
+	assert.Error(err)
+}
