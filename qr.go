@@ -12,116 +12,34 @@ type QrErrCorrectionLvl string
 type QrVersion int
 type QrModeIndicator byte
 
-const INVALID_IDX = -1
-const EMPTY_STRING = ""
-
-const (
-	NUMERIC       QrMode = "numeric"
-	ALPHA_NUMERIC QrMode = "alpha"
-	BYTE          QrMode = "byte"
-)
-
-const (
-	LOW      QrErrCorrectionLvl = "low"
-	MEDIUM   QrErrCorrectionLvl = "medium"
-	QUARTILE QrErrCorrectionLvl = "quartile"
-	HIGH     QrErrCorrectionLvl = "high"
-)
-
-const (
-	_ QrVersion = iota
-	VERSION_1
-	VERSION_2
-	VERSION_3
-	VERSION_4
-	VERSION_5
-)
-
-const (
-	NUMERIC_INDICATOR       QrModeIndicator = 0b0001
-	ALPHA_NUMERIC_INDICATOR QrModeIndicator = 0b0010
-	BYTE_INDICATOR          QrModeIndicator = 0b0100
-)
-
-var patterns = map[QrMode]string{
-	NUMERIC:       "^\\d+$",
-	ALPHA_NUMERIC: "^[\\dA-Z $%*+\\-./:]+$",
-	BYTE:          "^[\\x00-\\xff]+$",
-}
-
-var capacities = map[QrVersion]map[QrErrCorrectionLvl][]int{
-	VERSION_1: {
-		LOW:      {41, 25, 17},
-		MEDIUM:   {34, 20, 14},
-		QUARTILE: {27, 16, 11},
-		HIGH:     {17, 10, 7},
-	},
-	VERSION_2: {
-		LOW:      {77, 47, 32},
-		MEDIUM:   {63, 38, 26},
-		QUARTILE: {48, 29, 20},
-		HIGH:     {34, 20, 14},
-	},
-	VERSION_3: {
-		LOW:      {127, 77, 53},
-		MEDIUM:   {101, 61, 42},
-		QUARTILE: {77, 47, 32},
-		HIGH:     {58, 35, 24},
-	},
-	VERSION_4: {
-		LOW:      {187, 114, 78},
-		MEDIUM:   {149, 90, 62},
-		QUARTILE: {111, 67, 46},
-		HIGH:     {82, 50, 34},
-	},
-	VERSION_5: {
-		LOW:      {255, 154, 106},
-		MEDIUM:   {202, 122, 84},
-		QUARTILE: {144, 87, 60},
-		HIGH:     {106, 64, 44},
-	},
-}
-
-var modeIndicators = map[QrMode]QrModeIndicator{
-	NUMERIC:       NUMERIC_INDICATOR,
-	ALPHA_NUMERIC: ALPHA_NUMERIC_INDICATOR,
-	BYTE:          BYTE_INDICATOR,
-}
-
-var modeToIndex = map[QrMode]int{
-	NUMERIC:       0,
-	ALPHA_NUMERIC: 1,
-	BYTE:          2,
-}
-
 type QrEncoder interface {
 	GetMode(s string) (QrMode, error)
 	GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrVersion, error)
 	GetModeIndicator(mode QrMode) QrModeIndicator
 	GetCountIndicator(s string, version QrVersion, mode QrMode) (string, error)
+	EncodeNumericInput(s string) string
+	EncodeAlphanumericInput(s string) string
+	EncodeByteInput(s string) string
 	Encode(s string) string
+	splitInGroups(s string, n int) []string
 }
 
-type Encoder struct {
-	splitCount int
-}
+type Encoder struct{}
 
 func NewEncoder() QrEncoder {
-	return &Encoder{
-		splitCount: 3,
-	}
+	return &Encoder{}
 }
 
 func (e *Encoder) GetMode(s string) (QrMode, error) {
-	if matched, _ := regexp.MatchString(patterns[NUMERIC], s); matched {
+	if matched, _ := regexp.MatchString(PATTERNS[NUMERIC], s); matched {
 		return NUMERIC, nil
 	}
 
-	if matched, _ := regexp.MatchString(patterns[ALPHA_NUMERIC], s); matched {
+	if matched, _ := regexp.MatchString(PATTERNS[ALPHA_NUMERIC], s); matched {
 		return ALPHA_NUMERIC, nil
 	}
 
-	if matched, _ := regexp.MatchString(patterns[BYTE], s); matched {
+	if matched, _ := regexp.MatchString(PATTERNS[BYTE], s); matched {
 		return BYTE, nil
 	}
 
@@ -131,8 +49,8 @@ func (e *Encoder) GetMode(s string) (QrMode, error) {
 func (e *Encoder) GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrVersion, error) {
 	version := 1
 
-	for version <= len(capacities) {
-		if len(s) <= capacities[QrVersion(version)][lvl][modeToIndex[mode]] {
+	for version <= len(CAPACITIES) {
+		if len(s) <= CAPACITIES[QrVersion(version)][lvl][MODE_INDICES[mode]] {
 			return QrVersion(version), nil
 		}
 		version += 1
@@ -142,7 +60,7 @@ func (e *Encoder) GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrV
 }
 
 func (e *Encoder) GetModeIndicator(mode QrMode) QrModeIndicator {
-	return modeIndicators[mode]
+	return MODE_INDICATORS[mode]
 }
 
 func (e *Encoder) GetCountIndicator(s string, version QrVersion, mode QrMode) (string, error) {
@@ -152,21 +70,81 @@ func (e *Encoder) GetCountIndicator(s string, version QrVersion, mode QrMode) (s
 		return EMPTY_STRING, err
 	}
 
-	sLenBinary := strconv.FormatInt(int64(len(s)), 2)
-	return strings.Repeat("0", cntIndicatorLen-len(sLenBinary)), nil
+	sLenBinary := strconv.FormatInt(int64(len(s)), BINARY_RADIX)
+	return e.padStart(sLenBinary, DEFAULT_PAD_CHAR, cntIndicatorLen), nil
 }
 
-func (e *Encoder) Encode(s string) string {
-	groups := e.splitInGroups(s, e.splitCount)
+func (e *Encoder) EncodeNumericInput(s string) string {
+	groups := e.splitInGroups(s, SPLIT_VALUES[NUMERIC])
 	result := make([]string, len(groups))
 
 	for index, group := range groups {
 		numericValue, _ := strconv.Atoi(group)
-		binaryValue := strconv.FormatInt(int64(numericValue), 2)
-		result[index] = binaryValue
+		binaryString := strconv.FormatInt(int64(numericValue), BINARY_RADIX)
+
+		switch true {
+		case numericValue <= 9:
+			binaryString = e.padStart(binaryString, DEFAULT_PAD_CHAR, NUMERIC_MASKS[DIGIT])
+		case 10 <= numericValue && numericValue <= 99:
+			binaryString = e.padStart(binaryString, DEFAULT_PAD_CHAR, NUMERIC_MASKS[TEN])
+		default:
+			binaryString = e.padStart(binaryString, DEFAULT_PAD_CHAR, NUMERIC_MASKS[HUNDRED])
+		}
+
+		result[index] = binaryString
 	}
 
-	return strings.Join(result, "")
+	return strings.Join(result, EMPTY_STRING)
+}
+
+func (e *Encoder) EncodeAlphanumericInput(s string) string {
+	groups := e.splitInGroups(s, SPLIT_VALUES[ALPHA_NUMERIC])
+	result := make([]string, len(groups))
+
+	for index, group := range groups {
+		var binaryString string
+		var firstCharValue int
+		var secondCharValue int
+		var groupValue int
+
+		if len(group) == 2 {
+			firstCharValue, secondCharValue = ALPHA_NUMERIC_VALUES[group[0]], ALPHA_NUMERIC_VALUES[group[1]]
+			groupValue = 45*firstCharValue + secondCharValue
+			binaryString = strconv.FormatInt(int64(groupValue), BINARY_RADIX)
+			binaryString = e.padStart(binaryString, DEFAULT_PAD_CHAR, ALPHA_NUMERIC_MASKS[FULL_GROUP])
+		} else {
+			firstCharValue = ALPHA_NUMERIC_VALUES[group[0]]
+			groupValue = firstCharValue
+			binaryString = strconv.FormatInt(int64(groupValue), BINARY_RADIX)
+			binaryString = e.padStart(binaryString, DEFAULT_PAD_CHAR, ALPHA_NUMERIC_MASKS[ONE_ONLY])
+		}
+
+		result[index] = binaryString
+	}
+
+	return strings.Join(result, EMPTY_STRING)
+}
+
+func (e *Encoder) EncodeByteInput(s string) string {
+	groups := e.splitInGroups(s, SPLIT_VALUES[BYTE])
+	result := make([]string, len(groups))
+
+	for index, group := range groups {
+		hex := strconv.FormatInt(int64(group[0]), HEXADECIMAL_RADIX)
+		hex0, _ := strconv.ParseInt(string(hex[0]), HEXADECIMAL_RADIX, INTEGER_RADIX)
+		hex1, _ := strconv.ParseInt(string(hex[1]), HEXADECIMAL_RADIX, INTEGER_RADIX)
+
+		bin0 := e.padStart(strconv.FormatInt(hex0, BINARY_RADIX), DEFAULT_PAD_CHAR, BYTE_MASKS[CHAR])
+		bin1 := e.padStart(strconv.FormatInt(hex1, BINARY_RADIX), DEFAULT_PAD_CHAR, BYTE_MASKS[CHAR])
+
+		result[index] = bin0 + bin1
+	}
+
+	return strings.Join(result, EMPTY_STRING)
+}
+
+func (e *Encoder) Encode(s string) string {
+	return EMPTY_STRING
 }
 
 func (e *Encoder) getCountIndicatorLen(version QrVersion, mode QrMode) (int, error) {
@@ -183,6 +161,10 @@ func (e *Encoder) getCountIndicatorLen(version QrVersion, mode QrMode) (int, err
 	}
 
 	return 0, fmt.Errorf("Cannot compute QR Count Indicator length")
+}
+
+func (e *Encoder) padStart(s string, padChar string, n int) string {
+	return strings.Repeat(padChar, n-len(s)) + s
 }
 
 func (e *Encoder) splitInGroups(s string, n int) []string {
