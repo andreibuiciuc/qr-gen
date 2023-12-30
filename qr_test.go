@@ -225,3 +225,22 @@ func TestEncodedInputAugmentation(t *testing.T) {
 	assert.Equal("00100000010110110000101101111000110100010111001011011100010011010100001101000000111011000001000111101100",
 		actual, "Augmented encoded input should match binary representation")
 }
+
+func TestMessagePolynomialGeneration(t *testing.T) {
+	assert := assert.New(t)
+	e := NewEncoder()
+	var input string
+
+	input = "HELLO WORLD"
+	mode, _ := e.GetMode(input)
+	version, _ := e.GetVersion(input, mode, MEDIUM)
+	encoded, _ := e.Encode(input, MEDIUM)
+	augmented := e.AugmentEncodedInput(encoded, version, MEDIUM)
+	assert.Equal("00100000010110110000101101111000110100010111001011011100010011010100001101000000111011000001000111101100000100011110110000010001",
+		augmented, "Augmented encoded input should match binary representation")
+
+	actual := e.GetMessagePolynomial(augmented)
+	expected := [16]int{32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17}
+	expected_slice := expected[:]
+	assert.Equal(expected_slice, actual, "Message polynomial coefficients should match")
+}

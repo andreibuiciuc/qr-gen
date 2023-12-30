@@ -14,16 +14,20 @@ type QrVersion int
 type QrModeIndicator string
 
 type QrEncoder interface {
+	// QR versioning
 	GetMode(s string) (QrMode, error)
 	GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrVersion, error)
 	GetModeIndicator(mode QrMode) QrModeIndicator
 	GetCountIndicator(s string, version QrVersion, mode QrMode) (string, error)
+	// Data encoding
 	EncodeNumericInput(s string) string
 	EncodeAlphanumericInput(s string) string
 	EncodeByteInput(s string) string
 	Encode(s string, lvl QrErrCorrectionLvl) (string, error)
 	AugmentEncodedInput(s string, version QrVersion, lvl QrErrCorrectionLvl) string
 	splitInGroups(s string, n int) []string
+	// Error Correction encoding
+	GetMessagePolynomial(encoded string) []int
 }
 
 type Encoder struct{}
@@ -32,6 +36,7 @@ func NewEncoder() QrEncoder {
 	return &Encoder{}
 }
 
+// QR versioning
 func (e *Encoder) GetMode(s string) (QrMode, error) {
 	if matched, _ := regexp.MatchString(PATTERNS[NUMERIC], s); matched {
 		return NUMERIC, nil
@@ -76,6 +81,7 @@ func (e *Encoder) GetCountIndicator(s string, version QrVersion, mode QrMode) (s
 	return e.padStart(sLenBinary, DEFAULT_PAD_CHAR, cntIndicatorLen), nil
 }
 
+// Data encoding
 func (e *Encoder) EncodeNumericInput(s string) string {
 	groups := e.splitInGroups(s, SPLIT_VALUES[NUMERIC])
 	result := make([]string, len(groups))
@@ -289,6 +295,19 @@ func (e *Encoder) splitInGroups(s string, n int) []string {
 
 func (e *Encoder) getECMapKey(version QrVersion, lvl QrErrCorrectionLvl) string {
 	return strconv.Itoa(int(version)) + "-" + string(lvl)
+}
+
+// Error Correction encoding
+func (e *Encoder) GetMessagePolynomial(encoded string) []int {
+	codewords := e.splitInGroups(encoded, CODEWORD_BITS)
+	coefficients := make([]int, len(codewords))
+
+	for index, codeword := range codewords {
+		decimalValue, _ := strconv.ParseInt(codeword, BINARY_RADIX, INTEGER_RADIX)
+		coefficients[index] = int(decimalValue)
+	}
+
+	return coefficients
 }
 
 func main() {
