@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,7 +11,7 @@ import (
 type QrMode string
 type QrErrCorrectionLvl string
 type QrVersion int
-type QrModeIndicator byte
+type QrModeIndicator string
 
 type QrEncoder interface {
 	GetMode(s string) (QrMode, error)
@@ -20,7 +21,8 @@ type QrEncoder interface {
 	EncodeNumericInput(s string) string
 	EncodeAlphanumericInput(s string) string
 	EncodeByteInput(s string) string
-	Encode(s string) string
+	Encode(s string, lvl QrErrCorrectionLvl) (string, error)
+	AugmentEncodedInput(s string, version QrVersion, lvl QrErrCorrectionLvl) string
 	splitInGroups(s string, n int) []string
 }
 
@@ -143,8 +145,95 @@ func (e *Encoder) EncodeByteInput(s string) string {
 	return strings.Join(result, EMPTY_STRING)
 }
 
-func (e *Encoder) Encode(s string) string {
-	return EMPTY_STRING
+func (e *Encoder) EncodeInput(s string, mode QrMode) string {
+	switch mode {
+	case NUMERIC:
+		return e.EncodeNumericInput(s)
+	case ALPHA_NUMERIC:
+		return e.EncodeAlphanumericInput(s)
+	case BYTE:
+		return e.EncodeByteInput(s)
+	default:
+		return EMPTY_STRING
+	}
+}
+
+func (e *Encoder) AugmentEncodedInput(s string, version QrVersion, lvl QrErrCorrectionLvl) string {
+	requiredBitsCount := e.getNumberOfRequiredBits(version, lvl)
+
+	s = e.augmentWithTerminatorBits(s, requiredBitsCount)
+	remainingBitsCount := requiredBitsCount - len(s)
+	if remainingBitsCount == 0 {
+		return s
+	}
+
+	s = e.augmentWithZeroBits(s)
+	remainingBitsCount = requiredBitsCount - len(s)
+	if remainingBitsCount == 0 {
+		return s
+	}
+
+	return e.augmentWithPaddingBits(s, requiredBitsCount)
+}
+
+func (e *Encoder) augmentWithTerminatorBits(s string, requiredBitsCount int) string {
+	remainingBitsCount := requiredBitsCount - len(s)
+
+	if remainingBitsCount >= 4 {
+		return e.padRight(s, DEFAULT_PAD_CHAR, len(s)+4)
+	}
+
+	return e.padRight(s, DEFAULT_PAD_CHAR, len(s)+remainingBitsCount)
+}
+
+func (e *Encoder) augmentWithZeroBits(s string) string {
+	multiple := e.getClosestMultiple(len(s), CODEWORD_BITS)
+	return e.padRight(s, DEFAULT_PAD_CHAR, multiple)
+}
+
+func (e *Encoder) augmentWithPaddingBits(s string, requiredBitsCount int) string {
+	numberOfPadBytes := (requiredBitsCount - len(s)) / 8
+	paddingByteIndex := 0
+	paddingSequence := EMPTY_STRING
+
+	for i := 0; i < numberOfPadBytes; i++ {
+		if paddingByteIndex == 2 {
+			paddingByteIndex = paddingByteIndex % 2
+		}
+
+		paddingSequence = paddingSequence + PADDING_BYTES[QrPaddingByte(paddingByteIndex)]
+		paddingByteIndex += 1
+	}
+
+	return s + paddingSequence
+}
+
+func (e *Encoder) getClosestMultiple(n int, multipleOf int) int {
+	multiple := int(math.Round(float64(n) / float64(multipleOf)))
+	return multiple * multipleOf
+}
+
+func (e *Encoder) Encode(s string, lvl QrErrCorrectionLvl) (string, error) {
+	mode, err := e.GetMode(s)
+	if err != nil {
+		return EMPTY_STRING, fmt.Errorf("Error on computing the encoding mode: %v", err)
+	}
+
+	modeIndicator := e.GetModeIndicator(mode)
+
+	version, err := e.GetVersion(s, mode, lvl)
+	if err != nil {
+		return EMPTY_STRING, fmt.Errorf("Error on computing the encoding version: %v", err)
+	}
+
+	countIndicator, err := e.GetCountIndicator(s, version, mode)
+	if err != nil {
+		return EMPTY_STRING, fmt.Errorf("Error on computing the encoding count indicator: %v", err)
+	}
+
+	encodedInput := e.EncodeInput(s, mode)
+
+	return string(modeIndicator) + countIndicator + encodedInput, nil
 }
 
 func (e *Encoder) getCountIndicatorLen(version QrVersion, mode QrMode) (int, error) {
@@ -163,8 +252,17 @@ func (e *Encoder) getCountIndicatorLen(version QrVersion, mode QrMode) (int, err
 	return 0, fmt.Errorf("Cannot compute QR Count Indicator length")
 }
 
+func (e *Encoder) getNumberOfRequiredBits(version QrVersion, lvl QrErrCorrectionLvl) int {
+	key := e.getECMapKey(version, lvl)
+	return CODEWORD_BITS * ERR_CORR_TOTAL_DATA[key]
+}
+
 func (e *Encoder) padStart(s string, padChar string, n int) string {
 	return strings.Repeat(padChar, n-len(s)) + s
+}
+
+func (e *Encoder) padRight(s string, padChar string, n int) string {
+	return s + strings.Repeat(padChar, n-len(s))
 }
 
 func (e *Encoder) splitInGroups(s string, n int) []string {
@@ -187,6 +285,10 @@ func (e *Encoder) splitInGroups(s string, n int) []string {
 	}
 
 	return result
+}
+
+func (e *Encoder) getECMapKey(version QrVersion, lvl QrErrCorrectionLvl) string {
+	return strconv.Itoa(int(version)) + "-" + string(lvl)
 }
 
 func main() {

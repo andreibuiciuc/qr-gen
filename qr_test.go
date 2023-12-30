@@ -211,3 +211,17 @@ func TestByteNumericInput(t *testing.T) {
 	assert.Equal("01001000011001010110110001101100011011110010110000100000011101110110111101110010011011000110010000100001",
 		actual, "Input should match binary representation")
 }
+
+func TestEncodedInputAugmentation(t *testing.T) {
+	assert := assert.New(t)
+	e := NewEncoder()
+	var input string
+
+	input = "HELLO WORLD"
+	mode, _ := e.GetMode(input)
+	version, _ := e.GetVersion(input, mode, QUARTILE)
+	encoded, _ := e.Encode(input, QUARTILE)
+	actual := e.AugmentEncodedInput(encoded, version, QUARTILE)
+	assert.Equal("00100000010110110000101101111000110100010111001011011100010011010100001101000000111011000001000111101100",
+		actual, "Augmented encoded input should match binary representation")
+}

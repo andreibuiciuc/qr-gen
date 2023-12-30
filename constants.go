@@ -7,6 +7,7 @@ const BINARY_RADIX = 2
 const HEXADECIMAL_RADIX = 16
 const INTEGER_RADIX = 64
 const DEFAULT_PAD_CHAR = "0"
+const CODEWORD_BITS = 8
 
 const (
 	NUMERIC       QrMode = "numeric"
@@ -15,10 +16,10 @@ const (
 )
 
 const (
-	LOW      QrErrCorrectionLvl = "low"
-	MEDIUM   QrErrCorrectionLvl = "medium"
-	QUARTILE QrErrCorrectionLvl = "quartile"
-	HIGH     QrErrCorrectionLvl = "high"
+	LOW      QrErrCorrectionLvl = "L"
+	MEDIUM   QrErrCorrectionLvl = "M"
+	QUARTILE QrErrCorrectionLvl = "Q"
+	HIGH     QrErrCorrectionLvl = "H"
 )
 
 const (
@@ -31,14 +32,15 @@ const (
 )
 
 const (
-	NUMERIC_INDICATOR       QrModeIndicator = 0b0001
-	ALPHA_NUMERIC_INDICATOR QrModeIndicator = 0b0010
-	BYTE_INDICATOR          QrModeIndicator = 0b0100
+	NUMERIC_INDICATOR       QrModeIndicator = "0001"
+	ALPHA_NUMERIC_INDICATOR QrModeIndicator = "0010"
+	BYTE_INDICATOR          QrModeIndicator = "0100"
 )
 
 type QrNumericMask int
 type QrAlphanumericMask int
 type QrByteMask int
+type QrPaddingByte int
 
 const (
 	DIGIT QrNumericMask = iota
@@ -53,6 +55,11 @@ const (
 
 const (
 	CHAR QrByteMask = iota
+)
+
+const (
+	FIRST QrPaddingByte = iota
+	SECOND
 )
 
 var PATTERNS = map[QrMode]string{
@@ -173,4 +180,32 @@ var ALPHA_NUMERIC_MASKS = map[QrAlphanumericMask]int{
 
 var BYTE_MASKS = map[QrByteMask]int{
 	CHAR: 4,
+}
+
+var ERR_CORR_TOTAL_DATA = map[string]int{
+	"1-L": 19,
+	"1-M": 16,
+	"1-Q": 13,
+	"1-H": 9,
+	"2-L": 34,
+	"2-M": 28,
+	"2-Q": 22,
+	"2-H": 16,
+	"3-L": 55,
+	"3-M": 44,
+	"3-Q": 34,
+	"3-H": 26,
+	"4-L": 80,
+	"4-M": 64,
+	"4-Q": 48,
+	"4-H": 36,
+	"5-L": 108,
+	"5-M": 86,
+	"5-Q": 62,
+	"5-H": 46,
+}
+
+var PADDING_BYTES = map[QrPaddingByte]string{
+	FIRST:  "11101100",
+	SECOND: "00010001",
 }
