@@ -8,6 +8,9 @@ const HEXADECIMAL_RADIX = 16
 const INTEGER_RADIX = 64
 const DEFAULT_PAD_CHAR = "0"
 const CODEWORD_BITS = 8
+const QR_GALOIS_ORDER = 256
+const QR_GALOIS_MOD_VALUE = 285
+const DEFAULT_GALOIS_EXPONENT = -1
 
 const (
 	NUMERIC       QrMode = "numeric"
@@ -41,6 +44,7 @@ type QrNumericMask int
 type QrAlphanumericMask int
 type QrByteMask int
 type QrPaddingByte int
+type QrPolynomial []int
 
 const (
 	DIGIT QrNumericMask = iota
@@ -182,6 +186,15 @@ var BYTE_MASKS = map[QrByteMask]int{
 	CHAR: 4,
 }
 
+type QrErrorCorrectionInfo struct {
+	TotalDataCodewords          int
+	ECCodewordsPerBlock         int
+	NumBlocksGroup1             int
+	DataCodeworkdsInGroup1Block int
+	NumBlocksGroup2             int
+	DataCodewordsInGroup2Block  int
+}
+
 var ERR_CORR_TOTAL_DATA = map[string]int{
 	"1-L": 19,
 	"1-M": 16,
@@ -205,7 +218,33 @@ var ERR_CORR_TOTAL_DATA = map[string]int{
 	"5-H": 46,
 }
 
+var ERROR_CORRECTION_INFO = map[string]QrErrorCorrectionInfo{
+	"1-L": {19, 7, 1, 19, 0, 0},
+	"1-M": {16, 10, 1, 16, 0, 0},
+	"1-Q": {13, 13, 1, 13, 0, 0},
+	"1-H": {9, 17, 1, 9, 0, 0},
+	"2-L": {34, 10, 1, 34, 0, 0},
+	"2-M": {28, 16, 1, 28, 0, 0},
+	"2-Q": {22, 22, 1, 22, 0, 0},
+	"2-H": {16, 28, 1, 16, 0, 0},
+	"3-L": {55, 15, 1, 55, 0, 0},
+	"3-M": {44, 26, 1, 44, 0, 0},
+	"3-Q": {34, 18, 2, 17, 0, 0},
+	"3-H": {26, 22, 2, 13, 0, 0},
+	"4-L": {80, 20, 1, 80, 0, 0},
+	"4-M": {64, 18, 2, 32, 0, 0},
+	"4-Q": {48, 26, 2, 24, 0, 0},
+	"4-H": {36, 16, 4, 9, 0, 0},
+	"5-L": {108, 26, 1, 108, 0, 0},
+	"5-M": {86, 24, 2, 43, 0, 0},
+	"5-Q": {62, 18, 2, 15, 2, 16},
+	"5-H": {46, 22, 2, 11, 2, 12},
+}
+
 var PADDING_BYTES = map[QrPaddingByte]string{
 	FIRST:  "11101100",
 	SECOND: "00010001",
 }
+
+var QR_GALOIS_LOG_TABLE [QR_GALOIS_ORDER]int
+var QR_GALOIS_ANTILOG_TABLE [QR_GALOIS_ORDER]int

@@ -240,7 +240,20 @@ func TestMessagePolynomialGeneration(t *testing.T) {
 		augmented, "Augmented encoded input should match binary representation")
 
 	actual := e.GetMessagePolynomial(augmented)
-	expected := [16]int{32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17}
-	expected_slice := expected[:]
-	assert.Equal(expected_slice, actual, "Message polynomial coefficients should match")
+	var expected QrPolynomial = []int{32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17}
+	assert.Equal(expected, actual, "Message polynomial coefficients should match")
+}
+
+func TestGeneratorPolynomialGeneration(t *testing.T) {
+	assert := assert.New(t)
+	computeLogAntilogTables()
+	e := NewEncoder()
+
+	actual := e.GetGeneratorPolynomial(VERSION_1, MEDIUM)
+	var expected QrPolynomial = []int{45, 32, 94, 64, 70, 118, 61, 46, 67, 251, 0}
+	assert.Equal(expected, actual, "Generator polynomial coefficients should match")
+
+	actual = e.GetGeneratorPolynomial(VERSION_4, QUARTILE)
+	expected = []int{70, 218, 145, 153, 227, 48, 102, 13, 142, 245, 21, 161, 53, 165, 28, 111, 201, 145, 17, 118, 182, 103, 2, 158, 125, 173, 0}
+	assert.Equal(expected, actual, "Generator polynomial coefficients should match")
 }

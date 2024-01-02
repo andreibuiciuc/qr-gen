@@ -27,13 +27,18 @@ type QrEncoder interface {
 	AugmentEncodedInput(s string, version QrVersion, lvl QrErrCorrectionLvl) string
 	splitInGroups(s string, n int) []string
 	// Error Correction encoding
-	GetMessagePolynomial(encoded string) []int
+	GetMessagePolynomial(encoded string) QrPolynomial
+	GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial
 }
 
-type Encoder struct{}
+type Encoder struct {
+	alpha int
+}
 
 func NewEncoder() QrEncoder {
-	return &Encoder{}
+	return &Encoder{
+		alpha: 2,
+	}
 }
 
 // QR versioning
@@ -260,7 +265,7 @@ func (e *Encoder) getCountIndicatorLen(version QrVersion, mode QrMode) (int, err
 
 func (e *Encoder) getNumberOfRequiredBits(version QrVersion, lvl QrErrCorrectionLvl) int {
 	key := e.getECMapKey(version, lvl)
-	return CODEWORD_BITS * ERR_CORR_TOTAL_DATA[key]
+	return CODEWORD_BITS * ERROR_CORRECTION_INFO[key].TotalDataCodewords
 }
 
 func (e *Encoder) padStart(s string, padChar string, n int) string {
@@ -298,9 +303,9 @@ func (e *Encoder) getECMapKey(version QrVersion, lvl QrErrCorrectionLvl) string 
 }
 
 // Error Correction encoding
-func (e *Encoder) GetMessagePolynomial(encoded string) []int {
+func (e *Encoder) GetMessagePolynomial(encoded string) QrPolynomial {
 	codewords := e.splitInGroups(encoded, CODEWORD_BITS)
-	coefficients := make([]int, len(codewords))
+	coefficients := make(QrPolynomial, len(codewords))
 
 	for index, codeword := range codewords {
 		decimalValue, _ := strconv.ParseInt(codeword, BINARY_RADIX, INTEGER_RADIX)
@@ -308,6 +313,97 @@ func (e *Encoder) GetMessagePolynomial(encoded string) []int {
 	}
 
 	return coefficients
+}
+
+func (e *Encoder) GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial {
+	degree := ERROR_CORRECTION_INFO[e.getECMapKey(version, lvl)].ECCodewordsPerBlock
+	coefficients := make(QrPolynomial, 1)
+
+	for i := 1; i <= degree; i++ {
+		factorCoefficients := make(QrPolynomial, 2)
+		factorCoefficients[0] = i - 1
+		coefficients = e.multiplyPolynomials(coefficients, factorCoefficients)
+	}
+
+	return coefficients
+}
+
+func (e *Encoder) multiplyPolynomials(firstPoly, secondPoly QrPolynomial) QrPolynomial {
+	degreeFirstPoly, degreeSecondPoly := len(firstPoly)-1, len(secondPoly)-1
+	result := e.initializeResultAsExponents(degreeFirstPoly + degreeSecondPoly)
+
+	for i := 0; i <= degreeFirstPoly; i++ {
+		for j := 0; j <= degreeSecondPoly; j++ {
+			exponent := firstPoly[i] + secondPoly[j]
+
+			if exponent >= QR_GALOIS_ORDER {
+				exponent = exponent % (QR_GALOIS_ORDER - 1)
+			}
+
+			currValue := convertExponentToValue(exponent)
+			prevValue := e.getValueFromResultExponents(result, i+j)
+
+			exponent = convertValueToExponent(currValue ^ prevValue)
+			result[i+j] = exponent
+		}
+	}
+
+	return result
+}
+
+func (e *Encoder) initializeResultAsExponents(degree int) QrPolynomial {
+	exponents := make([]int, degree+1)
+
+	for i := 0; i < degree; i++ {
+		exponents[i] = -1
+	}
+
+	return exponents
+}
+
+func (e *Encoder) getValueFromResultExponents(result QrPolynomial, index int) int {
+	if index < 0 || index > len(result)-1 || result[index] == -1 {
+		return 0
+	}
+	return convertExponentToValue(result[index])
+}
+
+// Utilities
+func computeLogAntilogTables() {
+	for i := 0; i < QR_GALOIS_ORDER; i++ {
+		QR_GALOIS_LOG_TABLE[i] = computeAlphaToPower(2, i)
+		QR_GALOIS_ANTILOG_TABLE[QR_GALOIS_LOG_TABLE[i]] = i
+	}
+	QR_GALOIS_ANTILOG_TABLE[1] = 0
+}
+
+func convertValueToExponent(value int) int {
+	if value < 0 || value > len(QR_GALOIS_ANTILOG_TABLE)-1 {
+		return 0
+	}
+	return QR_GALOIS_ANTILOG_TABLE[value]
+}
+
+func convertExponentToValue(exponent int) int {
+	if exponent < 0 || exponent > len(QR_GALOIS_LOG_TABLE)-1 {
+		return 0
+	}
+	return QR_GALOIS_LOG_TABLE[exponent]
+}
+
+func computeAlphaToPower(alpha, power int) int {
+	result := 1
+
+	for i := 0; i < power; i++ {
+		prod := result * alpha
+
+		if prod >= QR_GALOIS_ORDER {
+			prod = prod ^ QR_GALOIS_MOD_VALUE
+		}
+
+		result = prod
+	}
+	return result
 }
 
 func main() {
