@@ -29,6 +29,7 @@ type QrEncoder interface {
 	// Error Correction encoding
 	GetMessagePolynomial(encoded string) QrPolynomial
 	GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial
+	GetErrorCorrectionCodewords(encoded string, version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial
 }
 
 type Encoder struct {
@@ -42,6 +43,7 @@ func NewEncoder() QrEncoder {
 }
 
 // QR versioning
+
 func (e *Encoder) GetMode(s string) (QrMode, error) {
 	if matched, _ := regexp.MatchString(PATTERNS[NUMERIC], s); matched {
 		return NUMERIC, nil
@@ -87,6 +89,7 @@ func (e *Encoder) GetCountIndicator(s string, version QrVersion, mode QrMode) (s
 }
 
 // Data encoding
+
 func (e *Encoder) EncodeNumericInput(s string) string {
 	groups := e.splitInGroups(s, SPLIT_VALUES[NUMERIC])
 	result := make([]string, len(groups))
@@ -303,13 +306,14 @@ func (e *Encoder) getECMapKey(version QrVersion, lvl QrErrCorrectionLvl) string 
 }
 
 // Error Correction encoding
+
 func (e *Encoder) GetMessagePolynomial(encoded string) QrPolynomial {
 	codewords := e.splitInGroups(encoded, CODEWORD_BITS)
 	coefficients := make(QrPolynomial, len(codewords))
 
 	for index, codeword := range codewords {
 		decimalValue, _ := strconv.ParseInt(codeword, BINARY_RADIX, INTEGER_RADIX)
-		coefficients[index] = int(decimalValue)
+		coefficients[len(coefficients)-index-1] = int(decimalValue)
 	}
 
 	return coefficients
@@ -325,7 +329,24 @@ func (e *Encoder) GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionL
 		coefficients = e.multiplyPolynomials(coefficients, factorCoefficients)
 	}
 
+	for i := 0; i < len(coefficients); i++ {
+		coefficients[i] = convertExponentToValue(coefficients[i])
+	}
+
 	return coefficients
+}
+
+func (e *Encoder) GetErrorCorrectionCodewords(encoded string, version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial {
+	messagePolynomial := e.GetMessagePolynomial(encoded)
+	generatorPolynomial := e.GetGeneratorPolynomial(version, lvl)
+	numErrCorrCodewords := ERROR_CORRECTION_INFO[e.getECMapKey(version, lvl)].ECCodewordsPerBlock
+
+	divisionSteps := len(messagePolynomial)
+	messagePolynomial = e.expandPolynomial(messagePolynomial, numErrCorrCodewords)
+	generatorPolynomial = e.expandPolynomial(generatorPolynomial, len(messagePolynomial)-len(generatorPolynomial))
+
+	errCorrCodewords := e.dividePolynomials(messagePolynomial, generatorPolynomial, divisionSteps, numErrCorrCodewords)
+	return errCorrCodewords[0:numErrCorrCodewords]
 }
 
 func (e *Encoder) multiplyPolynomials(firstPoly, secondPoly QrPolynomial) QrPolynomial {
@@ -351,6 +372,83 @@ func (e *Encoder) multiplyPolynomials(firstPoly, secondPoly QrPolynomial) QrPoly
 	return result
 }
 
+func (e *Encoder) dividePolynomials(divident, divisor QrPolynomial, steps, remainderLen int) QrPolynomial {
+	remainder := make(QrPolynomial, remainderLen)
+
+	var currentDivisor QrPolynomial
+	copy(currentDivisor, divisor)
+
+	for i := 0; i < steps; i++ {
+		dividentLeadTerm, leadTermIndex := e.getLeadingTerm(divident)
+
+		currentDivisor = divisor
+		currentDivisor = e.shiftPolynomial(currentDivisor, i)
+		currentDivisor = e.multiplyPolynomialByScalar(currentDivisor, dividentLeadTerm)
+		remainder = e.xorPolynomials(currentDivisor, divident, leadTermIndex)
+
+		divident = remainder
+	}
+
+	return divident
+}
+
+func (e *Encoder) multiplyPolynomialByScalar(polynomial QrPolynomial, scalar int) QrPolynomial {
+	scalarAlphaValue := convertValueToExponent(scalar)
+
+	var termAlphaValue int
+	result := make(QrPolynomial, len(polynomial))
+
+	currIndex := 0
+	isLeadTermFound := false
+
+	for i := len(polynomial) - 1; i >= 0; i-- {
+		termAlphaValue = convertValueToExponent(polynomial[i])
+
+		if termAlphaValue == 0 {
+			isLeadTermFound = true
+			continue
+		}
+
+		if isLeadTermFound && currIndex < 10 {
+			result[i] = convertExponentToValue((termAlphaValue + scalarAlphaValue) % (QR_GALOIS_ORDER - 1))
+			currIndex++
+		}
+	}
+
+	return result
+}
+
+func (e *Encoder) xorPolynomials(firstPolynomial, secondPolynomial QrPolynomial, leadTermIndex int) QrPolynomial {
+	result := make(QrPolynomial, len(secondPolynomial))
+
+	for i := len(secondPolynomial) - 1; i >= 0; i-- {
+		if i < leadTermIndex {
+			result[i] = firstPolynomial[i] ^ secondPolynomial[i]
+		}
+	}
+
+	return result
+}
+
+func (e *Encoder) getLeadingTerm(polynomial QrPolynomial) (int, int) {
+	for i := len(polynomial) - 1; i >= 0; i-- {
+		if polynomial[i] != 0 {
+			return polynomial[i], i
+		}
+	}
+	return -1, -1
+}
+
+func (e *Encoder) shiftPolynomial(polynomial QrPolynomial, unit int) QrPolynomial {
+	return append(polynomial[unit:], 0)
+}
+
+func (e *Encoder) expandPolynomial(polynomial QrPolynomial, n int) QrPolynomial {
+	expandedPolynomial := make(QrPolynomial, len(polynomial)+n)
+	copy(expandedPolynomial[n:], polynomial)
+	return expandedPolynomial
+}
+
 func (e *Encoder) initializeResultAsExponents(degree int) QrPolynomial {
 	exponents := make([]int, degree+1)
 
@@ -369,6 +467,7 @@ func (e *Encoder) getValueFromResultExponents(result QrPolynomial, index int) in
 }
 
 // Utilities
+
 func computeLogAntilogTables() {
 	for i := 0; i < QR_GALOIS_ORDER; i++ {
 		QR_GALOIS_LOG_TABLE[i] = computeAlphaToPower(2, i)
@@ -407,4 +506,13 @@ func computeAlphaToPower(alpha, power int) int {
 }
 
 func main() {
+	computeLogAntilogTables()
+	e := NewEncoder()
+	input := "HELLO WORLD"
+	mode, _ := e.GetMode(input)
+	version, _ := e.GetVersion(input, mode, MEDIUM)
+	encoded, _ := e.Encode(input, MEDIUM)
+	augmented := e.AugmentEncodedInput(encoded, version, MEDIUM)
+
+	e.GetErrorCorrectionCodewords(augmented, VERSION_1, MEDIUM)
 }

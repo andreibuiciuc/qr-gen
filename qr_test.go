@@ -240,7 +240,7 @@ func TestMessagePolynomialGeneration(t *testing.T) {
 		augmented, "Augmented encoded input should match binary representation")
 
 	actual := e.GetMessagePolynomial(augmented)
-	var expected QrPolynomial = []int{32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17}
+	var expected QrPolynomial = []int{17, 236, 17, 236, 17, 236, 64, 67, 77, 220, 114, 209, 120, 11, 91, 32}
 	assert.Equal(expected, actual, "Message polynomial coefficients should match")
 }
 
@@ -250,10 +250,26 @@ func TestGeneratorPolynomialGeneration(t *testing.T) {
 	e := NewEncoder()
 
 	actual := e.GetGeneratorPolynomial(VERSION_1, MEDIUM)
-	var expected QrPolynomial = []int{45, 32, 94, 64, 70, 118, 61, 46, 67, 251, 0}
+	var expected QrPolynomial = []int{193, 157, 113, 95, 94, 199, 111, 159, 194, 216, 1}
 	assert.Equal(expected, actual, "Generator polynomial coefficients should match")
 
 	actual = e.GetGeneratorPolynomial(VERSION_4, QUARTILE)
-	expected = []int{70, 218, 145, 153, 227, 48, 102, 13, 142, 245, 21, 161, 53, 165, 28, 111, 201, 145, 17, 118, 182, 103, 2, 158, 125, 173, 0}
+	expected = []int{94, 43, 77, 146, 144, 70, 68, 135, 42, 233, 117, 209, 40, 145, 24, 206, 56, 77, 152, 199, 98, 136, 4, 183, 51, 246, 1}
 	assert.Equal(expected, actual, "Generator polynomial coefficients should match")
+}
+
+func TestErrorCorrectionCodewordsGenerator(t *testing.T) {
+	assert := assert.New(t)
+	computeLogAntilogTables()
+	e := NewEncoder()
+
+	input := "HELLO WORLD"
+	mode, _ := e.GetMode(input)
+	version, _ := e.GetVersion(input, mode, MEDIUM)
+	encoded, _ := e.Encode(input, MEDIUM)
+	augmented := e.AugmentEncodedInput(encoded, version, MEDIUM)
+
+	actual := e.GetErrorCorrectionCodewords(augmented, VERSION_1, MEDIUM)
+	var expected QrPolynomial = []int{23, 93, 226, 231, 215, 235, 119, 39, 35, 196}
+	assert.Equal(expected, actual, "Error correction codewords should match")
 }
