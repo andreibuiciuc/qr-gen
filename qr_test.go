@@ -8,7 +8,7 @@ import (
 
 func TestNumericInputOnly(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 
 	var input string
 	var err error
@@ -31,17 +31,17 @@ func TestNumericInputOnly(t *testing.T) {
 
 	input = ""
 	actual, _ = e.GetMode(input)
-	assert.Equal(QrMode(EMPTY_STRING), actual, "Input pattern should be invalid")
+	assert.Equal(QrMode(""), actual, "Input pattern should be invalid")
 
 	input = "こんにちは"
 	actual, err = e.GetMode(input)
-	assert.Equal(QrMode(EMPTY_STRING), actual, "Input pattern should be invalid")
+	assert.Equal(QrMode(""), actual, "Input pattern should be invalid")
 	assert.Error(err)
 }
 
 func TestAlphaNumericInputOnly(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 	var err error
 
@@ -63,13 +63,13 @@ func TestAlphaNumericInputOnly(t *testing.T) {
 
 	input = ""
 	actual, err = e.GetMode(input)
-	assert.Equal(QrMode(EMPTY_STRING), actual, "Input pattern should be invalid")
+	assert.Equal(QrMode(""), actual, "Input pattern should be invalid")
 	assert.Error(err)
 }
 
 func TestByteInputOnly(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 	var err error
 
@@ -83,13 +83,13 @@ func TestByteInputOnly(t *testing.T) {
 
 	input = ""
 	actual, err = e.GetMode(input)
-	assert.Equal(QrMode(EMPTY_STRING), actual, "Input pattern should be invalid")
+	assert.Equal(QrMode(""), actual, "Input pattern should be invalid")
 	assert.Error(err)
 }
 
 func TestComputeQrVersion(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 	var err error
 
@@ -118,7 +118,7 @@ func TestComputeQrVersion(t *testing.T) {
 
 func TestGetModeIndicator(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 
 	input = "1233"
@@ -142,7 +142,7 @@ func TestGetModeIndicator(t *testing.T) {
 
 func TestGetCountIndicator(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 
 	input = "HELLO WORLD"
@@ -166,7 +166,7 @@ func TestGetCountIndicator(t *testing.T) {
 
 func TestNumericEncoding(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 
 	input = "8675309"
@@ -180,7 +180,7 @@ func TestNumericEncoding(t *testing.T) {
 
 func TestAlphaNumericEncoding(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 
 	input = "HE"
@@ -198,7 +198,7 @@ func TestAlphaNumericEncoding(t *testing.T) {
 
 func TestByteNumericInput(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 
 	input = "Hello"
@@ -214,7 +214,7 @@ func TestByteNumericInput(t *testing.T) {
 
 func TestEncodedInputAugmentation(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 
 	input = "HELLO WORLD"
@@ -228,7 +228,7 @@ func TestEncodedInputAugmentation(t *testing.T) {
 
 func TestMessagePolynomialGeneration(t *testing.T) {
 	assert := assert.New(t)
-	e := NewEncoder()
+	e := NewEncoderTest()
 	var input string
 
 	input = "HELLO WORLD"
@@ -247,7 +247,7 @@ func TestMessagePolynomialGeneration(t *testing.T) {
 func TestGeneratorPolynomialGeneration(t *testing.T) {
 	assert := assert.New(t)
 	computeLogAntilogTables()
-	e := NewEncoder()
+	e := NewEncoderTest()
 
 	actual := e.GetGeneratorPolynomial(VERSION_1, MEDIUM)
 	var expected QrPolynomial = []int{193, 157, 113, 95, 94, 199, 111, 159, 194, 216, 1}
@@ -261,7 +261,7 @@ func TestGeneratorPolynomialGeneration(t *testing.T) {
 func TestErrorCorrectionCodewordsGenerator(t *testing.T) {
 	assert := assert.New(t)
 	computeLogAntilogTables()
-	e := NewEncoder()
+	e := NewEncoderTest()
 
 	input := "HELLO WORLD"
 	mode, _ := e.GetMode(input)
@@ -272,4 +272,15 @@ func TestErrorCorrectionCodewordsGenerator(t *testing.T) {
 	actual := e.GetErrorCorrectionCodewords(augmented, VERSION_1, MEDIUM)
 	var expected QrPolynomial = []int{23, 93, 226, 231, 215, 235, 119, 39, 35, 196}
 	assert.Equal(expected, actual, "Error correction codewords should match")
+}
+
+func TestInterleavingProcess(t *testing.T) {
+	assert := assert.New(t)
+	computeLogAntilogTables()
+	e := NewEncoderTest()
+
+	input := "0100001101010101010001101000011001010111001001100101010111000010011101110011001000000110000100100000011001100111001001101111011011110110010000100000011101110110100001101111001000000111001001100101011000010110110001101100011110010010000001101011011011100110111101110111011100110010000001110111011010000110010101110010011001010010000001101000011010010111001100100000011101000110111101110111011001010110110000100000011010010111001100101110000011101100000100011110110000010001111011000001000111101100"
+	actual := e.GetFinalMessage(input, VERSION_5, QUARTILE)
+	expected := "01000011111101101011011001000110010101011111011011100110111101110100011001000010111101110111011010000110000001110111011101010110010101110111011000110010110000100010011010000110000001110000011001010101111100100111011010010111110000100000011110000110001100100111011100100110010101111110000000110010010101100010011011101100000001100001011001010010000100010001001011000110000001101110110000000110110001111000011000010001011001111001001010010111111011000010011000000110001100100001000100000111111011000010011110000101100011010100101001101111011110001100000001011001101000011010001111110000110011010101011010100011011011000000011001101111000100010000101001010011100110101101000110111101110001010111010110000001111001101110101110011010000110111100001101101111111110001000011001001100011100011110010111001000111011101111110111011111100111011111001001101000111100010111110001001011001001011111011110110110100001011000001101110011110010100100110001101100001011010011110011010100111101110000101101100000101100011111101011000111110011000111010001100100110101010101011110010100100011000000000"
+	assert.Equal(expected, actual, "Interleaved codewords should match")
 }

@@ -1,16 +1,24 @@
 package main
 
-const INVALID_IDX = -1
-const EMPTY_STRING = ""
-const ALPHA_NUMERIC_FACTOR = 45
-const BINARY_RADIX = 2
-const HEXADECIMAL_RADIX = 16
-const INTEGER_RADIX = 64
-const DEFAULT_PAD_CHAR = "0"
-const CODEWORD_BITS = 8
+type QrNumericMask int
+type QrAlphanumericMask int
+type QrByteMask int
+type QrPaddingByte int
+type QrPolynomial []int
+
+type QrECInformation struct {
+	TotalDataCodewords          int
+	ECCodewordsPerBlock         int
+	NumBlocksGroup1             int
+	DataCodeworkdsInGroup1Block int
+	NumBlocksGroup2             int
+	DataCodewordsInGroup2Block  int
+}
+
+const QR_ALPHA_NUMERIC_FACTOR = 45
+const QR_CODEWORD_SIZE = 8
 const QR_GALOIS_ORDER = 256
 const QR_GALOIS_MOD_VALUE = 285
-const DEFAULT_GALOIS_EXPONENT = -1
 
 const (
 	NUMERIC       QrMode = "numeric"
@@ -39,12 +47,6 @@ const (
 	ALPHA_NUMERIC_INDICATOR QrModeIndicator = "0010"
 	BYTE_INDICATOR          QrModeIndicator = "0100"
 )
-
-type QrNumericMask int
-type QrAlphanumericMask int
-type QrByteMask int
-type QrPaddingByte int
-type QrPolynomial []int
 
 const (
 	DIGIT QrNumericMask = iota
@@ -171,54 +173,23 @@ var ALPHA_NUMERIC_VALUES = map[byte]int{
 	':': 44,
 }
 
-var NUMERIC_MASKS = map[QrNumericMask]int{
+var QR_NUMERIC_MASKS = map[QrNumericMask]int{
 	DIGIT:   4,
 	TEN:     7,
 	HUNDRED: 10,
 }
 
-var ALPHA_NUMERIC_MASKS = map[QrAlphanumericMask]int{
+var QR_ALPHA_NUMERIC_MASKS = map[QrAlphanumericMask]int{
 	FULL_GROUP: 11,
 	ONE_ONLY:   6,
 }
 
-var BYTE_MASKS = map[QrByteMask]int{
+var QR_BYTE_MASKS = map[QrByteMask]int{
 	CHAR: 4,
 }
 
-type QrErrorCorrectionInfo struct {
-	TotalDataCodewords          int
-	ECCodewordsPerBlock         int
-	NumBlocksGroup1             int
-	DataCodeworkdsInGroup1Block int
-	NumBlocksGroup2             int
-	DataCodewordsInGroup2Block  int
-}
-
-var ERR_CORR_TOTAL_DATA = map[string]int{
-	"1-L": 19,
-	"1-M": 16,
-	"1-Q": 13,
-	"1-H": 9,
-	"2-L": 34,
-	"2-M": 28,
-	"2-Q": 22,
-	"2-H": 16,
-	"3-L": 55,
-	"3-M": 44,
-	"3-Q": 34,
-	"3-H": 26,
-	"4-L": 80,
-	"4-M": 64,
-	"4-Q": 48,
-	"4-H": 36,
-	"5-L": 108,
-	"5-M": 86,
-	"5-Q": 62,
-	"5-H": 46,
-}
-
-var ERROR_CORRECTION_INFO = map[string]QrErrorCorrectionInfo{
+var QR_EC_INFO = map[string]QrECInformation{
+	// Extend this map to support higher levels of QR codes
 	"1-L": {19, 7, 1, 19, 0, 0},
 	"1-M": {16, 10, 1, 16, 0, 0},
 	"1-Q": {13, 13, 1, 13, 0, 0},
@@ -241,7 +212,50 @@ var ERROR_CORRECTION_INFO = map[string]QrErrorCorrectionInfo{
 	"5-H": {46, 22, 2, 11, 2, 12},
 }
 
-var PADDING_BYTES = map[QrPaddingByte]string{
+var QR_REMAINDER_BITS = map[QrVersion]int{
+	1:  0,
+	2:  7,
+	3:  7,
+	4:  7,
+	5:  7,
+	6:  7,
+	7:  0,
+	8:  0,
+	9:  0,
+	10: 0,
+	11: 0,
+	12: 0,
+	13: 0,
+	14: 3,
+	15: 3,
+	16: 3,
+	17: 3,
+	18: 3,
+	19: 3,
+	20: 3,
+	21: 4,
+	22: 4,
+	23: 4,
+	24: 4,
+	25: 4,
+	26: 4,
+	27: 4,
+	28: 3,
+	29: 3,
+	30: 3,
+	31: 3,
+	32: 3,
+	33: 3,
+	34: 3,
+	35: 0,
+	36: 0,
+	37: 0,
+	38: 0,
+	39: 0,
+	40: 0,
+}
+
+var QR_PADDING_BYTES = map[QrPaddingByte]string{
 	FIRST:  "11101100",
 	SECOND: "00010001",
 }
