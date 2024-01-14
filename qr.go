@@ -4,38 +4,28 @@ import (
 	"fmt"
 	"math"
 	"qr/qr-gen/util"
-	"regexp"
+	"qr/qr-gen/versioner"
 	"strconv"
 	"strings"
 )
 
-type QrMode string
-type QrErrCorrectionLvl string
-type QrVersion int
-type QrModeIndicator string
-
 type QrEncoder interface {
-	Encode(s string, lvl QrErrCorrectionLvl) (string, error)
+	Encode(s string, lvl versioner.QrEcLevel, v versioner.Versioner) (string, error)
 }
 
 type QrEncoderTest interface {
-	// QR versioning
-	GetMode(s string) (QrMode, error)
-	GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrVersion, error)
-	GetModeIndicator(mode QrMode) QrModeIndicator
-	GetCountIndicator(s string, version QrVersion, mode QrMode) (string, error)
 	// Data encoding
 	EncodeNumericInput(s string) string
 	EncodeAlphanumericInput(s string) string
 	EncodeByteInput(s string) string
-	Encode(s string, lvl QrErrCorrectionLvl) (string, error)
-	AugmentEncodedInput(s string, version QrVersion, lvl QrErrCorrectionLvl) string
+	Encode(s string, lvl versioner.QrEcLevel, v versioner.Versioner) (string, error)
+	AugmentEncodedInput(s string, version QrVersion, lvl versioner.QrEcLevel) string
 	// Error Correction encoding
 	GetMessagePolynomial(encoded string) QrPolynomial
-	GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial
-	GetErrorCorrectionCodewords(encoded string, version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial
+	GetGeneratorPolynomial(version QrVersion, lvl versioner.QrEcLevel) QrPolynomial
+	GetErrorCorrectionCodewords(encoded string, version QrVersion, lvl versioner.QrEcLevel) QrPolynomial
 	// Interleaving
-	GetFinalMessage(encoded string, version QrVersion, lvl QrErrCorrectionLvl) string
+	GetFinalMessage(encoded string, version QrVersion, lvl versioner.QrEcLevel) string
 }
 
 type Encoder struct {
@@ -49,56 +39,10 @@ func NewEncoder() QrEncoder {
 	return &Encoder{}
 }
 
-// QR versioning
-
-func (e *Encoder) GetMode(s string) (QrMode, error) {
-	if matched, _ := regexp.MatchString(PATTERNS[NUMERIC], s); matched {
-		return NUMERIC, nil
-	}
-
-	if matched, _ := regexp.MatchString(PATTERNS[ALPHA_NUMERIC], s); matched {
-		return ALPHA_NUMERIC, nil
-	}
-
-	if matched, _ := regexp.MatchString(PATTERNS[BYTE], s); matched {
-		return BYTE, nil
-	}
-
-	return QrMode(""), fmt.Errorf("Invalid input pattern")
-}
-
-func (e *Encoder) GetVersion(s string, mode QrMode, lvl QrErrCorrectionLvl) (QrVersion, error) {
-	version := 1
-
-	for version <= len(CAPACITIES) {
-		if len(s) <= CAPACITIES[QrVersion(version)][lvl][MODE_INDICES[mode]] {
-			return QrVersion(version), nil
-		}
-		version += 1
-	}
-
-	return QrVersion(-1), fmt.Errorf("Cannot compute QR version")
-}
-
-func (e *Encoder) GetModeIndicator(mode QrMode) QrModeIndicator {
-	return MODE_INDICATORS[mode]
-}
-
-func (e *Encoder) GetCountIndicator(s string, version QrVersion, mode QrMode) (string, error) {
-	cntIndicatorLen, err := e.getCountIndicatorLen(version, mode)
-
-	if err != nil {
-		return "", err
-	}
-
-	sLenBinary := strconv.FormatInt(int64(len(s)), 2)
-	return util.PadLeft(sLenBinary, "0", cntIndicatorLen), nil
-}
-
 // Data encoding
 
 func (e *Encoder) EncodeNumericInput(s string) string {
-	groups := util.SplitInGroups(s, SPLIT_VALUES[NUMERIC])
+	groups := util.SplitInGroups(s, SPLIT_VALUES[QrMode(versioner.QrNumericMode)])
 	result := make([]string, len(groups))
 
 	for index, group := range groups {
@@ -121,7 +65,7 @@ func (e *Encoder) EncodeNumericInput(s string) string {
 }
 
 func (e *Encoder) EncodeAlphanumericInput(s string) string {
-	groups := util.SplitInGroups(s, SPLIT_VALUES[ALPHA_NUMERIC])
+	groups := util.SplitInGroups(s, SPLIT_VALUES[QrMode(versioner.QrAlphanumericMode)])
 	result := make([]string, len(groups))
 
 	for index, group := range groups {
@@ -149,7 +93,7 @@ func (e *Encoder) EncodeAlphanumericInput(s string) string {
 }
 
 func (e *Encoder) EncodeByteInput(s string) string {
-	groups := util.SplitInGroups(s, SPLIT_VALUES[BYTE])
+	groups := util.SplitInGroups(s, SPLIT_VALUES[QrMode(versioner.QrByteMode)])
 	result := make([]string, len(groups))
 
 	for index, group := range groups {
@@ -168,18 +112,18 @@ func (e *Encoder) EncodeByteInput(s string) string {
 
 func (e *Encoder) EncodeInput(s string, mode QrMode) string {
 	switch mode {
-	case NUMERIC:
+	case QrMode(versioner.QrNumericMode):
 		return e.EncodeNumericInput(s)
-	case ALPHA_NUMERIC:
+	case QrMode(versioner.QrAlphanumericMode):
 		return e.EncodeAlphanumericInput(s)
-	case BYTE:
+	case QrMode(versioner.QrByteMode):
 		return e.EncodeByteInput(s)
 	default:
 		return ""
 	}
 }
 
-func (e *Encoder) AugmentEncodedInput(s string, version QrVersion, lvl QrErrCorrectionLvl) string {
+func (e *Encoder) AugmentEncodedInput(s string, version QrVersion, lvl versioner.QrEcLevel) string {
 	requiredBitsCount := e.getNumberOfRequiredBits(version, lvl)
 
 	s = e.augmentWithTerminatorBits(s, requiredBitsCount)
@@ -234,51 +178,35 @@ func (e *Encoder) getClosestMultiple(n int, multipleOf int) int {
 	return multiple * multipleOf
 }
 
-func (e *Encoder) Encode(s string, lvl QrErrCorrectionLvl) (string, error) {
-	mode, err := e.GetMode(s)
+func (e *Encoder) Encode(s string, lvl versioner.QrEcLevel, v versioner.Versioner) (string, error) {
+	mode, err := v.GetMode(s)
 	if err != nil {
 		return "", fmt.Errorf("Error on computing the encoding mode: %v", err)
 	}
 
-	modeIndicator := e.GetModeIndicator(mode)
+	modeIndicator := v.GetModeIndicator(mode)
 
-	version, err := e.GetVersion(s, mode, lvl)
+	version, err := v.GetVersion(s, mode, lvl)
 	if err != nil {
 		return "", fmt.Errorf("Error on computing the encoding version: %v", err)
 	}
 
-	countIndicator, err := e.GetCountIndicator(s, version, mode)
+	countIndicator, err := v.GetCountIndicator(s, version, mode)
 	if err != nil {
 		return "", fmt.Errorf("Error on computing the encoding count indicator: %v", err)
 	}
 
-	encodedInput := e.EncodeInput(s, mode)
+	encodedInput := e.EncodeInput(s, QrMode(mode))
 
 	return string(modeIndicator) + countIndicator + encodedInput, nil
 }
 
-func (e *Encoder) getCountIndicatorLen(version QrVersion, mode QrMode) (int, error) {
-	// Extend this functionality for further versions support
-	if VERSION_1 <= version && version <= VERSION_5 {
-		switch mode {
-		case NUMERIC:
-			return 10, nil
-		case ALPHA_NUMERIC:
-			return 9, nil
-		case BYTE:
-			return 8, nil
-		}
-	}
-
-	return 0, fmt.Errorf("Cannot compute QR Count Indicator length")
-}
-
-func (e *Encoder) getNumberOfRequiredBits(version QrVersion, lvl QrErrCorrectionLvl) int {
+func (e *Encoder) getNumberOfRequiredBits(version QrVersion, lvl versioner.QrEcLevel) int {
 	key := e.getECMapKey(version, lvl)
 	return QR_CODEWORD_SIZE * QR_EC_INFO[key].TotalDataCodewords
 }
 
-func (e *Encoder) getECMapKey(version QrVersion, lvl QrErrCorrectionLvl) string {
+func (e *Encoder) getECMapKey(version QrVersion, lvl versioner.QrEcLevel) string {
 	return strconv.Itoa(int(version)) + "-" + string(lvl)
 }
 
@@ -296,7 +224,7 @@ func (e *Encoder) GetMessagePolynomial(encoded string) QrPolynomial {
 	return coefficients
 }
 
-func (e *Encoder) GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial {
+func (e *Encoder) GetGeneratorPolynomial(version QrVersion, lvl versioner.QrEcLevel) QrPolynomial {
 	degree := QR_EC_INFO[e.getECMapKey(version, lvl)].ECCodewordsPerBlock
 	coefficients := make(QrPolynomial, 1)
 
@@ -313,7 +241,7 @@ func (e *Encoder) GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionL
 	return coefficients
 }
 
-func (e *Encoder) GetErrorCorrectionCodewords(encoded string, version QrVersion, lvl QrErrCorrectionLvl) QrPolynomial {
+func (e *Encoder) GetErrorCorrectionCodewords(encoded string, version QrVersion, lvl versioner.QrEcLevel) QrPolynomial {
 	messagePolynomial := e.GetMessagePolynomial(encoded)
 	generatorPolynomial := e.GetGeneratorPolynomial(version, lvl)
 	numErrCorrCodewords := QR_EC_INFO[e.getECMapKey(version, lvl)].ECCodewordsPerBlock
@@ -445,7 +373,7 @@ func (e *Encoder) getValueFromResultExponents(result QrPolynomial, index int) in
 
 // Interleaving
 
-func (e *Encoder) GetFinalMessage(inputCodewords string, version QrVersion, lvl QrErrCorrectionLvl) string {
+func (e *Encoder) GetFinalMessage(inputCodewords string, version QrVersion, lvl versioner.QrEcLevel) string {
 	var codewords string
 
 	if e.isInterleavingNecessary(version, lvl) {
@@ -458,11 +386,11 @@ func (e *Encoder) GetFinalMessage(inputCodewords string, version QrVersion, lvl 
 	return util.PadRight(codewords, "0", len(codewords)+QR_REMAINDER_BITS[version])
 }
 
-func (e *Encoder) isInterleavingNecessary(version QrVersion, lvl QrErrCorrectionLvl) bool {
+func (e *Encoder) isInterleavingNecessary(version QrVersion, lvl versioner.QrEcLevel) bool {
 	return QR_EC_INFO[e.getECMapKey(version, lvl)].NumBlocksGroup2 != 0
 }
 
-func (e *Encoder) interleaveDataCodewords(version QrVersion, lvl QrErrCorrectionLvl, encoded string) ([]int, [][]int) {
+func (e *Encoder) interleaveDataCodewords(version QrVersion, lvl versioner.QrEcLevel, encoded string) ([]int, [][]int) {
 	key := e.getECMapKey(version, lvl)
 
 	group1Size := QR_EC_INFO[key].NumBlocksGroup1
@@ -479,7 +407,7 @@ func (e *Encoder) interleaveDataCodewords(version QrVersion, lvl QrErrCorrection
 	return e.interleaveCodewords(dataBlocks, util.Max(group1BlockSize, group2BlockSize)), dataBlocks
 }
 
-func (e *Encoder) interleaveErrCorrCodewords(version QrVersion, lvl QrErrCorrectionLvl, dataBlocks [][]int) []int {
+func (e *Encoder) interleaveErrCorrCodewords(version QrVersion, lvl versioner.QrEcLevel, dataBlocks [][]int) []int {
 	blocks := make([][]int, len(dataBlocks))
 
 	for i, block := range dataBlocks {
@@ -490,7 +418,7 @@ func (e *Encoder) interleaveErrCorrCodewords(version QrVersion, lvl QrErrCorrect
 	return e.interleaveCodewords(blocks, QR_EC_INFO[e.getECMapKey(version, lvl)].ECCodewordsPerBlock)
 }
 
-func (e *Encoder) handleInterleaveProcess(version QrVersion, lvl QrErrCorrectionLvl, codewords string) string {
+func (e *Encoder) handleInterleaveProcess(version QrVersion, lvl versioner.QrEcLevel, codewords string) string {
 	interleavedDataCodewords, dataBlocks := e.interleaveDataCodewords(version, lvl, codewords)
 	interleavedECCodewords := e.interleaveErrCorrCodewords(version, lvl, dataBlocks)
 
