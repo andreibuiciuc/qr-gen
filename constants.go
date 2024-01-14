@@ -1,4 +1,4 @@
-package main
+package qr
 
 type QrNumericMask int
 type QrAlphanumericMask int

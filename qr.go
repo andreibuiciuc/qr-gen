@@ -1,8 +1,9 @@
-package main
+package qr
 
 import (
 	"fmt"
 	"math"
+	"qr/qr-gen/util"
 	"regexp"
 	"strconv"
 	"strings"
@@ -38,19 +39,14 @@ type QrEncoderTest interface {
 }
 
 type Encoder struct {
-	alpha int
 }
 
 func NewEncoderTest() QrEncoderTest {
-	return &Encoder{
-		alpha: 2,
-	}
+	return &Encoder{}
 }
 
 func NewEncoder() QrEncoder {
-	return &Encoder{
-		alpha: 2,
-	}
+	return &Encoder{}
 }
 
 // QR versioning
@@ -96,13 +92,13 @@ func (e *Encoder) GetCountIndicator(s string, version QrVersion, mode QrMode) (s
 	}
 
 	sLenBinary := strconv.FormatInt(int64(len(s)), 2)
-	return e.padStart(sLenBinary, "0", cntIndicatorLen), nil
+	return util.PadLeft(sLenBinary, "0", cntIndicatorLen), nil
 }
 
 // Data encoding
 
 func (e *Encoder) EncodeNumericInput(s string) string {
-	groups := e.splitInGroups(s, SPLIT_VALUES[NUMERIC])
+	groups := util.SplitInGroups(s, SPLIT_VALUES[NUMERIC])
 	result := make([]string, len(groups))
 
 	for index, group := range groups {
@@ -111,11 +107,11 @@ func (e *Encoder) EncodeNumericInput(s string) string {
 
 		switch true {
 		case numericValue <= 9:
-			binaryString = e.padStart(binaryString, "0", QR_NUMERIC_MASKS[DIGIT])
+			binaryString = util.PadLeft(binaryString, "0", QR_NUMERIC_MASKS[DIGIT])
 		case 10 <= numericValue && numericValue <= 99:
-			binaryString = e.padStart(binaryString, "0", QR_NUMERIC_MASKS[TEN])
+			binaryString = util.PadLeft(binaryString, "0", QR_NUMERIC_MASKS[TEN])
 		default:
-			binaryString = e.padStart(binaryString, "0", QR_NUMERIC_MASKS[HUNDRED])
+			binaryString = util.PadLeft(binaryString, "0", QR_NUMERIC_MASKS[HUNDRED])
 		}
 
 		result[index] = binaryString
@@ -125,7 +121,7 @@ func (e *Encoder) EncodeNumericInput(s string) string {
 }
 
 func (e *Encoder) EncodeAlphanumericInput(s string) string {
-	groups := e.splitInGroups(s, SPLIT_VALUES[ALPHA_NUMERIC])
+	groups := util.SplitInGroups(s, SPLIT_VALUES[ALPHA_NUMERIC])
 	result := make([]string, len(groups))
 
 	for index, group := range groups {
@@ -138,12 +134,12 @@ func (e *Encoder) EncodeAlphanumericInput(s string) string {
 			firstCharValue, secondCharValue = ALPHA_NUMERIC_VALUES[group[0]], ALPHA_NUMERIC_VALUES[group[1]]
 			groupValue = QR_ALPHA_NUMERIC_FACTOR*firstCharValue + secondCharValue
 			binaryString = strconv.FormatInt(int64(groupValue), 2)
-			binaryString = e.padStart(binaryString, "0", QR_ALPHA_NUMERIC_MASKS[FULL_GROUP])
+			binaryString = util.PadLeft(binaryString, "0", QR_ALPHA_NUMERIC_MASKS[FULL_GROUP])
 		} else {
 			firstCharValue = ALPHA_NUMERIC_VALUES[group[0]]
 			groupValue = firstCharValue
 			binaryString = strconv.FormatInt(int64(groupValue), 2)
-			binaryString = e.padStart(binaryString, "0", QR_ALPHA_NUMERIC_MASKS[ONE_ONLY])
+			binaryString = util.PadLeft(binaryString, "0", QR_ALPHA_NUMERIC_MASKS[ONE_ONLY])
 		}
 
 		result[index] = binaryString
@@ -153,7 +149,7 @@ func (e *Encoder) EncodeAlphanumericInput(s string) string {
 }
 
 func (e *Encoder) EncodeByteInput(s string) string {
-	groups := e.splitInGroups(s, SPLIT_VALUES[BYTE])
+	groups := util.SplitInGroups(s, SPLIT_VALUES[BYTE])
 	result := make([]string, len(groups))
 
 	for index, group := range groups {
@@ -161,8 +157,8 @@ func (e *Encoder) EncodeByteInput(s string) string {
 		hex0, _ := strconv.ParseInt(string(hex[0]), 16, 64)
 		hex1, _ := strconv.ParseInt(string(hex[1]), 16, 64)
 
-		bin0 := e.padStart(strconv.FormatInt(hex0, 2), "0", QR_BYTE_MASKS[CHAR])
-		bin1 := e.padStart(strconv.FormatInt(hex1, 2), "0", QR_BYTE_MASKS[CHAR])
+		bin0 := util.PadLeft(strconv.FormatInt(hex0, 2), "0", QR_BYTE_MASKS[CHAR])
+		bin1 := util.PadLeft(strconv.FormatInt(hex1, 2), "0", QR_BYTE_MASKS[CHAR])
 
 		result[index] = bin0 + bin1
 	}
@@ -205,15 +201,15 @@ func (e *Encoder) augmentWithTerminatorBits(s string, requiredBitsCount int) str
 	remainingBitsCount := requiredBitsCount - len(s)
 
 	if remainingBitsCount >= 4 {
-		return e.padRight(s, "0", len(s)+4)
+		return util.PadRight(s, "0", len(s)+4)
 	}
 
-	return e.padRight(s, "0", len(s)+remainingBitsCount)
+	return util.PadRight(s, "0", len(s)+remainingBitsCount)
 }
 
 func (e *Encoder) augmentWithZeroBits(s string) string {
 	multiple := e.getClosestMultiple(len(s), QR_CODEWORD_SIZE)
-	return e.padRight(s, "0", multiple)
+	return util.PadRight(s, "0", multiple)
 }
 
 func (e *Encoder) augmentWithPaddingBits(s string, requiredBitsCount int) string {
@@ -282,36 +278,6 @@ func (e *Encoder) getNumberOfRequiredBits(version QrVersion, lvl QrErrCorrection
 	return QR_CODEWORD_SIZE * QR_EC_INFO[key].TotalDataCodewords
 }
 
-func (e *Encoder) padStart(s string, padChar string, n int) string {
-	return strings.Repeat(padChar, n-len(s)) + s
-}
-
-func (e *Encoder) padRight(s string, padChar string, n int) string {
-	return s + strings.Repeat(padChar, n-len(s))
-}
-
-func (e *Encoder) splitInGroups(s string, n int) []string {
-	var result []string
-	count := 0
-	start := 0
-
-	for i := 0; i < len(s); i++ {
-		count += 1
-
-		if count == n {
-			result = append(result, s[start:i+1])
-			start = i + 1
-			count = 0
-		}
-	}
-
-	if start < len(s) {
-		result = append(result, s[start:])
-	}
-
-	return result
-}
-
 func (e *Encoder) getECMapKey(version QrVersion, lvl QrErrCorrectionLvl) string {
 	return strconv.Itoa(int(version)) + "-" + string(lvl)
 }
@@ -319,7 +285,7 @@ func (e *Encoder) getECMapKey(version QrVersion, lvl QrErrCorrectionLvl) string 
 // Error Correction encoding
 
 func (e *Encoder) GetMessagePolynomial(encoded string) QrPolynomial {
-	codewords := e.splitInGroups(encoded, QR_CODEWORD_SIZE)
+	codewords := util.SplitInGroups(encoded, QR_CODEWORD_SIZE)
 	coefficients := make(QrPolynomial, len(codewords))
 
 	for index, codeword := range codewords {
@@ -341,7 +307,7 @@ func (e *Encoder) GetGeneratorPolynomial(version QrVersion, lvl QrErrCorrectionL
 	}
 
 	for i := 0; i < len(coefficients); i++ {
-		coefficients[i] = convertExponentToValue(coefficients[i])
+		coefficients[i] = util.ConvertExponentToValue(coefficients[i])
 	}
 
 	return coefficients
@@ -372,10 +338,10 @@ func (e *Encoder) multiplyPolynomials(firstPoly, secondPoly QrPolynomial) QrPoly
 				exponent = exponent % (QR_GALOIS_ORDER - 1)
 			}
 
-			currValue := convertExponentToValue(exponent)
+			currValue := util.ConvertExponentToValue(exponent)
 			prevValue := e.getValueFromResultExponents(result, i+j)
 
-			exponent = convertValueToExponent(currValue ^ prevValue)
+			exponent = util.ConvertValueToExponent(currValue ^ prevValue)
 			result[i+j] = exponent
 		}
 	}
@@ -404,7 +370,7 @@ func (e *Encoder) dividePolynomials(divident, divisor QrPolynomial, steps, remai
 }
 
 func (e *Encoder) multiplyPolynomialByScalar(polynomial QrPolynomial, scalar, remainderLen int) QrPolynomial {
-	scalarAlphaValue := convertValueToExponent(scalar)
+	scalarAlphaValue := util.ConvertValueToExponent(scalar)
 
 	var termAlphaValue int
 	result := make(QrPolynomial, len(polynomial))
@@ -413,7 +379,7 @@ func (e *Encoder) multiplyPolynomialByScalar(polynomial QrPolynomial, scalar, re
 	isLeadTermFound := false
 
 	for i := len(polynomial) - 1; i >= 0; i-- {
-		termAlphaValue = convertValueToExponent(polynomial[i])
+		termAlphaValue = util.ConvertValueToExponent(polynomial[i])
 
 		if termAlphaValue == 0 {
 			isLeadTermFound = true
@@ -421,7 +387,7 @@ func (e *Encoder) multiplyPolynomialByScalar(polynomial QrPolynomial, scalar, re
 		}
 
 		if isLeadTermFound && currIndex < remainderLen {
-			result[i] = convertExponentToValue((termAlphaValue + scalarAlphaValue) % (QR_GALOIS_ORDER - 1))
+			result[i] = util.ConvertExponentToValue((termAlphaValue + scalarAlphaValue) % (QR_GALOIS_ORDER - 1))
 			currIndex++
 		}
 	}
@@ -474,7 +440,7 @@ func (e *Encoder) getValueFromResultExponents(result QrPolynomial, index int) in
 	if index < 0 || index > len(result)-1 || result[index] == -1 {
 		return 0
 	}
-	return convertExponentToValue(result[index])
+	return util.ConvertExponentToValue(result[index])
 }
 
 // Interleaving
@@ -486,10 +452,10 @@ func (e *Encoder) GetFinalMessage(inputCodewords string, version QrVersion, lvl 
 		codewords = e.handleInterleaveProcess(version, lvl, inputCodewords)
 	} else {
 		errCorrCodewords := e.GetErrorCorrectionCodewords(inputCodewords, version, lvl)
-		codewords = inputCodewords + convertQrPolynomialToCodewords(errCorrCodewords)
+		codewords = inputCodewords + util.ConvertIntListToCodewords(errCorrCodewords)
 	}
 
-	return e.padRight(codewords, "0", len(codewords)+QR_REMAINDER_BITS[version])
+	return util.PadRight(codewords, "0", len(codewords)+QR_REMAINDER_BITS[version])
 }
 
 func (e *Encoder) isInterleavingNecessary(version QrVersion, lvl QrErrCorrectionLvl) bool {
@@ -510,14 +476,14 @@ func (e *Encoder) interleaveDataCodewords(version QrVersion, lvl QrErrCorrection
 	group2Blocks := e.getBlocksOfCodewords(group2Codewords, group2Size, group2BlockSize)
 
 	dataBlocks := append(group1Blocks, group2Blocks...)
-	return e.interleaveCodewords(dataBlocks, max(group1BlockSize, group2BlockSize)), dataBlocks
+	return e.interleaveCodewords(dataBlocks, util.Max(group1BlockSize, group2BlockSize)), dataBlocks
 }
 
 func (e *Encoder) interleaveErrCorrCodewords(version QrVersion, lvl QrErrCorrectionLvl, dataBlocks [][]int) []int {
 	blocks := make([][]int, len(dataBlocks))
 
 	for i, block := range dataBlocks {
-		encoded := strings.Join(e.convertIntegerToBinary(block), "")
+		encoded := strings.Join(util.ConvertIntListToBin(block), "")
 		blocks[i] = e.GetErrorCorrectionCodewords(encoded, version, lvl)
 	}
 
@@ -528,8 +494,8 @@ func (e *Encoder) handleInterleaveProcess(version QrVersion, lvl QrErrCorrection
 	interleavedDataCodewords, dataBlocks := e.interleaveDataCodewords(version, lvl, codewords)
 	interleavedECCodewords := e.interleaveErrCorrCodewords(version, lvl, dataBlocks)
 
-	interleavedDataBinary := e.convertIntegerToBinary(interleavedDataCodewords)
-	interleavedECBinary := e.convertIntegerToBinary(interleavedECCodewords)
+	interleavedDataBinary := util.ConvertIntListToBin(interleavedDataCodewords)
+	interleavedECBinary := util.ConvertIntListToBin(interleavedECCodewords)
 
 	return strings.Join(interleavedDataBinary, "") + strings.Join(interleavedECBinary, "")
 }
@@ -567,104 +533,4 @@ func (e *Encoder) getBlocksOfCodewords(input string, blocksCount int, blockSize 
 	}
 
 	return blocks
-}
-
-// Utilities
-
-func computeLogAntilogTables() {
-	for i := 0; i < QR_GALOIS_ORDER; i++ {
-		QR_GALOIS_LOG_TABLE[i] = computeAlphaToPower(2, i)
-		QR_GALOIS_ANTILOG_TABLE[QR_GALOIS_LOG_TABLE[i]] = i
-	}
-	QR_GALOIS_ANTILOG_TABLE[1] = 0
-}
-
-func convertValueToExponent(value int) int {
-	if value < 0 || value > len(QR_GALOIS_ANTILOG_TABLE)-1 {
-		return 0
-	}
-	return QR_GALOIS_ANTILOG_TABLE[value]
-}
-
-func convertExponentToValue(exponent int) int {
-	if exponent < 0 || exponent > len(QR_GALOIS_LOG_TABLE)-1 {
-		return 0
-	}
-	return QR_GALOIS_LOG_TABLE[exponent]
-}
-
-func computeAlphaToPower(alpha, power int) int {
-	result := 1
-
-	for i := 0; i < power; i++ {
-		prod := result * alpha
-
-		if prod >= QR_GALOIS_ORDER {
-			prod = prod ^ QR_GALOIS_MOD_VALUE
-		}
-
-		result = prod
-	}
-	return result
-}
-
-func convertQrPolynomialToCodewords(poly QrPolynomial) string {
-	var binaryStrings []string
-
-	for _, coefficient := range poly {
-		binaryStrings = append(binaryStrings, strconv.FormatInt(int64(coefficient), 2))
-	}
-
-	return strings.Join(binaryStrings, "")
-}
-
-func convertBinaryToInteger(list []string) []int {
-	var res []int
-	for _, bin := range list {
-		intVal, _ := strconv.ParseInt(bin, 2, 64)
-		res = append(res, int(intVal))
-	}
-
-	return res
-}
-
-func (e *Encoder) convertIntegerToBinary(list []int) []string {
-	result := make([]string, len(list))
-
-	for i, val := range list {
-		bin := strconv.FormatInt(int64(val), 2)
-		result[i] = e.padStart(bin, "0", 8)
-	}
-
-	return result
-}
-
-func convertExponentList(list []int) []int {
-	result := make([]int, len(list))
-
-	for i, exp := range list {
-		result[i] = convertExponentToValue(exp)
-	}
-
-	return result
-}
-
-func convertValueList(list []int) []int {
-	result := make([]int, len(list))
-
-	for i, val := range list {
-		result[i] = convertValueToExponent(val)
-	}
-
-	return result
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func main() {
 }
