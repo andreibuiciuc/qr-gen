@@ -1,12 +1,47 @@
 package util
 
 import (
+	"math"
 	"strconv"
 	"strings"
 )
 
+type QrErrorCorrectionInfo struct {
+	TotalDataCodewords          int
+	ECCodewordsPerBlock         int
+	NumBlocksGroup1             int
+	DataCodeworkdsInGroup1Block int
+	NumBlocksGroup2             int
+	DataCodewordsInGroup2Block  int
+}
+
+const QrCodewordSize = 8
+
 var logTable = make([]int, 256)
 var antilogTable = make([]int, 256)
+
+var QrEcInfo = map[string]QrErrorCorrectionInfo{
+	"1-L": {19, 7, 1, 19, 0, 0},
+	"1-M": {16, 10, 1, 16, 0, 0},
+	"1-Q": {13, 13, 1, 13, 0, 0},
+	"1-H": {9, 17, 1, 9, 0, 0},
+	"2-L": {34, 10, 1, 34, 0, 0},
+	"2-M": {28, 16, 1, 28, 0, 0},
+	"2-Q": {22, 22, 1, 22, 0, 0},
+	"2-H": {16, 28, 1, 16, 0, 0},
+	"3-L": {55, 15, 1, 55, 0, 0},
+	"3-M": {44, 26, 1, 44, 0, 0},
+	"3-Q": {34, 18, 2, 17, 0, 0},
+	"3-H": {26, 22, 2, 13, 0, 0},
+	"4-L": {80, 20, 1, 80, 0, 0},
+	"4-M": {64, 18, 2, 32, 0, 0},
+	"4-Q": {48, 26, 2, 24, 0, 0},
+	"4-H": {36, 16, 4, 9, 0, 0},
+	"5-L": {108, 26, 1, 108, 0, 0},
+	"5-M": {86, 24, 2, 43, 0, 0},
+	"5-Q": {62, 18, 2, 15, 2, 16},
+	"5-H": {46, 22, 2, 11, 2, 12},
+}
 
 func ComputeAlphaToPower(alpha, power int) int {
 	result := 1
@@ -64,6 +99,11 @@ func ConvertIntListToCodewords(list []int) string {
 	return strings.Join(codewords, "")
 }
 
+func GetClosestMultiple(n int, multipleOf int) int {
+	multiple := int(math.Round(float64(n) / float64(multipleOf)))
+	return multiple * multipleOf
+}
+
 func Max(a, b int) int {
 	if a > b {
 		return a
@@ -99,4 +139,9 @@ func SplitInGroups(s string, n int) []string {
 	}
 
 	return result
+}
+
+// TODO: Fix cycle import
+func GetECMappingKey(version int, lvl string) string {
+	return strconv.Itoa(int(version)) + "-" + string(lvl)
 }

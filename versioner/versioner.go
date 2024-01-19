@@ -26,15 +26,15 @@ func New() Versioner {
 }
 
 func (v *QrVersioner) GetMode(s string) (QrMode, error) {
-	if matched, _ := regexp.MatchString(qrModeRegexex[QrNumericMode], s); matched {
+	if matched, _ := regexp.MatchString(qrModeRegexes[QrNumericMode], s); matched {
 		return QrNumericMode, nil
 	}
 
-	if matched, _ := regexp.MatchString(qrModeRegexex[QrAlphanumericMode], s); matched {
+	if matched, _ := regexp.MatchString(qrModeRegexes[QrAlphanumericMode], s); matched {
 		return QrAlphanumericMode, nil
 	}
 
-	if matched, _ := regexp.MatchString(qrModeRegexex[QrByteMode], s); matched {
+	if matched, _ := regexp.MatchString(qrModeRegexes[QrByteMode], s); matched {
 		return QrByteMode, nil
 	}
 
@@ -83,7 +83,7 @@ const (
 	qrByteInd         string = "0100"
 )
 
-var qrModeRegexex = map[QrMode]string{
+var qrModeRegexes = map[QrMode]string{
 	QrNumericMode:      "^\\d+$",
 	QrAlphanumericMode: "^[\\dA-Z $%*+\\-./:]+$",
 	QrByteMode:         "^[\\x00-\\xff]+$",
