@@ -43,11 +43,13 @@ var QrEcInfo = map[string]QrErrorCorrectionInfo{
 	"5-H": {46, 22, 2, 11, 2, 12},
 }
 
-func ComputeAlphaToPower(alpha, power int) int {
+// ComputeAlphaToPower computes the power of a to p
+// in the Galois field of order 256.
+func ComputeAlphaToPower(a, p int) int {
 	result := 1
 
-	for i := 0; i < power; i++ {
-		prod := result * alpha
+	for i := 0; i < p; i++ {
+		prod := result * a
 
 		if prod >= 256 {
 			prod = prod ^ 285
@@ -59,6 +61,8 @@ func ComputeAlphaToPower(alpha, power int) int {
 	return result
 }
 
+// ComputeLogAntilogTables computes the Log and Antilog tables
+// in the Galois field of order 256.
 func ComputeLogAntilogTables() {
 	for i := 0; i < 256; i++ {
 		logTable[i] = ComputeAlphaToPower(2, i)
@@ -67,22 +71,28 @@ func ComputeLogAntilogTables() {
 	antilogTable[1] = 0
 }
 
-func ConvertValueToExponent(value int) int {
-	if value < 0 || value > len(antilogTable)-1 {
+// ConvertValueToExponent converts the value n into the exponent
+// from the Antilog table in the Galois field of order 256.
+func ConvertValueToExponent(n int) int {
+	if n < 0 || n > len(antilogTable)-1 {
 		return 0
 	}
 
-	return antilogTable[value]
+	return antilogTable[n]
 }
 
-func ConvertExponentToValue(exp int) int {
-	if exp < 0 || exp > len(logTable)-1 {
+// ConvertExponentToValue converts the exponent n into the base
+// from the Log table in the Galois field of order 256.
+func ConvertExponentToValue(n int) int {
+	if n < 0 || n > len(logTable)-1 {
 		return 0
 	}
 
-	return logTable[exp]
+	return logTable[n]
 }
 
+// ConvertIntListToBin converts a list of integers into a list
+// of 8 bit binary strings.
 func ConvertIntListToBin(list []int) []string {
 	result := make([]string, len(list))
 
@@ -94,16 +104,19 @@ func ConvertIntListToBin(list []int) []string {
 	return result
 }
 
+// ConvertIntListToCodewords converts a list of integers into
+// a binary string of codewords.
 func ConvertIntListToCodewords(list []int) string {
-	codewords := ConvertIntListToBin(list)
-	return strings.Join(codewords, "")
+	return strings.Join(ConvertIntListToBin(list), "")
 }
 
-func GetClosestMultiple(n int, multipleOf int) int {
-	multiple := int(math.Round(float64(n) / float64(multipleOf)))
-	return multiple * multipleOf
+// GetClosestMultiple computes the closest to n mutiple of m.
+func GetClosestMultiple(n int, m int) int {
+	multiple := int(math.Round(float64(n) / float64(m)))
+	return multiple * m
 }
 
+// Max computes the maximum value between two integers.
 func Max(a, b int) int {
 	if a > b {
 		return a
@@ -111,37 +124,41 @@ func Max(a, b int) int {
 	return b
 }
 
+// PadLeft applies a padding to the left with the character c
+// such that the padded string has length n.
 func PadLeft(s string, c string, n int) string {
 	return strings.Repeat(c, n-len(s)) + s
 }
 
+// PadRight applies a padding to the right with the character c
+// such that the padded string has length n.
 func PadRight(s string, c string, n int) string {
 	return s + strings.Repeat(c, n-len(s))
 }
 
+// SplitInGroups splits a string into groups of at least n characters.
 func SplitInGroups(s string, n int) []string {
+	if s == "" {
+		return nil
+	}
+
 	var result []string
-	count := 0
-	start := 0
+	for {
+		result = append(result, s[:n])
+		s = s[n:]
 
-	for i := 0; i < len(s); i++ {
-		count += 1
-
-		if count == n {
-			result = append(result, s[start:i+1])
-			start = i + 1
-			count = 0
+		if n > len(s) {
+			break
 		}
 	}
 
-	if start < len(s) {
-		result = append(result, s[start:])
+	if len(s) < n && s != "" {
+		result = append(result, s)
 	}
 
 	return result
 }
 
-// TODO: Fix cycle import
 func GetECMappingKey(version int, lvl string) string {
 	return strconv.Itoa(int(version)) + "-" + string(lvl)
 }
