@@ -162,3 +162,7 @@ func SplitInGroups(s string, n int) []string {
 func GetECMappingKey(version int, lvl string) string {
 	return strconv.Itoa(int(version)) + "-" + string(lvl)
 }
+
+func testAndrew() {
+
+}
