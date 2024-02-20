@@ -55,6 +55,7 @@ func (m *Moduler) CreateModuleMatrix() matrix.Matrix[Module] {
 	m.setTopRightFinderPattern(moduleMatrix)
 	m.setBottomLeftFinderPattern(moduleMatrix)
 	m.setAlignmentPatterns(moduleMatrix)
+	m.setTimingPatterns(moduleMatrix)
 
 	moduleMatrix.PrintMatrix()
 	return *moduleMatrix
@@ -103,6 +104,33 @@ func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]
 
 	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
 		moduleMatrix.Set(boundary.lowerRow-1, i, 0)
+	}
+}
+
+// Sets the alignment patterns in the module matrix
+func (m *Moduler) setAlignmentPatterns(moduleMatrix *matrix.Matrix[Module]) {
+	for _, coordinates := range allignmentPatternLocation[m.version] {
+		boundary := m.alignmentPatternBoundary(coordinates)
+		m.patchPatternInMatrix(moduleMatrix, boundary)
+	}
+}
+
+// Sets the timing patterns in the module matrix
+func (m *Moduler) setTimingPatterns(moduleMatrix *matrix.Matrix[Module]) {
+	topLeftFinderBoundary, _ := m.finderPatternBoundary(true, true)
+	topRightFinderBoundary, _ := m.finderPatternBoundary(true, false)
+	bottomLeftFinderBoundary, _ := m.finderPatternBoundary(false, true)
+
+	val := 1
+	for i := topLeftFinderBoundary.upperCol - 1; i < topRightFinderBoundary.lowerCol; i++ {
+		moduleMatrix.Set(6, i, Module(val))
+		val = (val + 1) % 2
+	}
+
+	val = 1
+	for i := topLeftFinderBoundary.upperRow - 1; i < bottomLeftFinderBoundary.lowerRow; i++ {
+		moduleMatrix.Set(i, 6, Module(val))
+		val = (val + 1) % 2
 	}
 }
 
@@ -165,12 +193,5 @@ func (m *Moduler) alignmentPatternBoundary(coordinates Coordintates) Boundary {
 		upperRow: coordinates.row + 3,
 		lowerCol: coordinates.col - 2,
 		upperCol: coordinates.col + 3,
-	}
-}
-
-func (m *Moduler) setAlignmentPatterns(moduleMatrix *matrix.Matrix[Module]) {
-	for _, coordinates := range allignmentPatternLocation[m.version] {
-		boundary := m.alignmentPatternBoundary(coordinates)
-		m.patchPatternInMatrix(moduleMatrix, boundary)
 	}
 }
