@@ -26,7 +26,10 @@ type Boundary struct {
 const finderPatternSize = 7
 
 const (
-	moduleValue_EMPTY Module = 5
+	module_LIGHTEN  Module = 0
+	module_DARKEN   Module = 1
+	module_RESERVED Module = 2
+	module_EMPTY    Module = 5
 )
 
 // Those locations stand only for alignment patterns that do not overlap with finder patterns
@@ -49,13 +52,16 @@ func (m *Moduler) CreateModuleMatrix() matrix.Matrix[Module] {
 	qrCodeSize := m.qrCodeSize()
 
 	moduleMatrix := matrix.NewMatrix[Module](qrCodeSize, qrCodeSize)
-	moduleMatrix.Init(moduleValue_EMPTY)
+	moduleMatrix.Init(module_EMPTY)
 
 	m.setTopLeftFinderPattern(moduleMatrix)
 	m.setTopRightFinderPattern(moduleMatrix)
 	m.setBottomLeftFinderPattern(moduleMatrix)
 	m.setAlignmentPatterns(moduleMatrix)
 	m.setTimingPatterns(moduleMatrix)
+	m.setDarkModule(moduleMatrix)
+
+	m.reserveFormatArea(moduleMatrix)
 
 	moduleMatrix.PrintMatrix()
 	return *moduleMatrix
@@ -71,11 +77,11 @@ func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
 	m.patchPatternInMatrix(moduleMatrix, *boundary)
 
 	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
-		moduleMatrix.Set(i, boundary.upperCol, 0)
+		moduleMatrix.Set(i, boundary.upperCol, module_LIGHTEN)
 	}
 
 	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
-		moduleMatrix.Set(boundary.upperRow, i, 0)
+		moduleMatrix.Set(boundary.upperRow, i, module_LIGHTEN)
 	}
 }
 
@@ -85,11 +91,11 @@ func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[Module]) 
 	m.patchPatternInMatrix(moduleMatrix, *boundary)
 
 	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
-		moduleMatrix.Set(i, boundary.lowerCol-1, 0)
+		moduleMatrix.Set(i, boundary.lowerCol-1, module_LIGHTEN)
 	}
 
 	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
-		moduleMatrix.Set(boundary.upperRow, i, 0)
+		moduleMatrix.Set(boundary.upperRow, i, module_LIGHTEN)
 	}
 }
 
@@ -99,11 +105,11 @@ func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]
 	m.patchPatternInMatrix(moduleMatrix, *boundary)
 
 	for i := boundary.lowerRow - 1; i < boundary.upperRow; i++ {
-		moduleMatrix.Set(i, boundary.upperCol, 0)
+		moduleMatrix.Set(i, boundary.upperCol, module_LIGHTEN)
 	}
 
 	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
-		moduleMatrix.Set(boundary.lowerRow-1, i, 0)
+		moduleMatrix.Set(boundary.lowerRow-1, i, module_LIGHTEN)
 	}
 }
 
@@ -134,15 +140,52 @@ func (m *Moduler) setTimingPatterns(moduleMatrix *matrix.Matrix[Module]) {
 	}
 }
 
+// Sets the dark module in the module matrix
+func (m *Moduler) setDarkModule(moduleMatrix *matrix.Matrix[Module]) {
+	moduleMatrix.Set(4*int(m.version)+9, 8, module_DARKEN)
+}
+
+func (m *Moduler) reserveFormatArea(moduleMatrix *matrix.Matrix[Module]) {
+	boundary, _ := m.finderPatternBoundary(true, true)
+
+	for i := boundary.lowerRow; i < boundary.upperRow+2; i++ {
+		if val, _ := moduleMatrix.At(i, boundary.upperCol+1); val == module_EMPTY {
+			moduleMatrix.Set(i, boundary.upperCol+1, module_RESERVED)
+		}
+	}
+
+	for i := boundary.lowerCol; i < boundary.upperCol+2; i++ {
+		if val, _ := moduleMatrix.At(boundary.upperRow+1, i); val == module_EMPTY {
+			moduleMatrix.Set(boundary.upperRow+1, i, module_RESERVED)
+		}
+	}
+
+	boundary, _ = m.finderPatternBoundary(true, false)
+
+	for i := boundary.lowerCol - 1; i < boundary.upperCol; i++ {
+		if val, _ := moduleMatrix.At(boundary.upperRow+1, i); val == module_EMPTY {
+			moduleMatrix.Set(boundary.upperRow+1, i, module_RESERVED)
+		}
+	}
+
+	boundary, _ = m.finderPatternBoundary(false, true)
+
+	for i := boundary.lowerRow - 1; i < boundary.upperRow; i++ {
+		if val, _ := moduleMatrix.At(i, boundary.upperCol+1); val == module_EMPTY {
+			moduleMatrix.Set(i, boundary.upperCol+1, module_RESERVED)
+		}
+	}
+}
+
 func (m *Moduler) patchPatternInMatrix(moduleMatrix *matrix.Matrix[Module], boundary Boundary) {
 	for i := boundary.lowerRow; i < boundary.upperRow; i++ {
 		for j := boundary.lowerCol; j < boundary.upperCol; j++ {
 			if m.isPatternModuleDarken(i, j, boundary) {
-				moduleMatrix.Set(i, j, 1)
+				moduleMatrix.Set(i, j, module_DARKEN)
 			} else if m.isPatternModuleLighten(i, j, boundary) {
-				moduleMatrix.Set(i, j, 0)
+				moduleMatrix.Set(i, j, module_LIGHTEN)
 			} else {
-				moduleMatrix.Set(i, j, 1)
+				moduleMatrix.Set(i, j, module_DARKEN)
 			}
 		}
 	}
