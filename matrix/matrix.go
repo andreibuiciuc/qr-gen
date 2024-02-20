@@ -90,6 +90,10 @@ func (m *Matrix[T]) ColumnAt(colIdx int) ([]T, error) {
 	return row, nil
 }
 
+func (m *Matrix[T]) GetMatrix() [][]T {
+	return m.mat
+}
+
 func (m *Matrix[T]) setMatrix(mat [][]T) error {
 	if m.width != len(mat) {
 		return fmt.Errorf("Matrices witdth does not match")
@@ -106,4 +110,13 @@ func (m *Matrix[T]) setMatrix(mat [][]T) error {
 	}
 
 	return nil
+}
+
+func (m *Matrix[T]) PrintMatrix() {
+	for _, row := range m.mat {
+		for _, val := range row {
+			fmt.Printf("%v ", val)
+		}
+		fmt.Println()
+	}
 }
