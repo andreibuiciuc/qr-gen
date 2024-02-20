@@ -19,13 +19,15 @@ type Boundary struct {
 }
 
 const (
-	moduleValue_EMPTY Module = iota
+	moduleValue_EMPTY Module = 5
 )
 
 const finderPatternSize = 7
 
-func NewModuler() *Moduler {
-	return &Moduler{}
+func NewModuler(version int) *Moduler {
+	return &Moduler{
+		version: versioner.QrVersion(version),
+	}
 }
 
 func (m *Moduler) CreateModuleMatrix() matrix.Matrix[Module] {
@@ -34,7 +36,9 @@ func (m *Moduler) CreateModuleMatrix() matrix.Matrix[Module] {
 	moduleMatrix := matrix.NewMatrix[Module](qrCodeSize, qrCodeSize)
 	moduleMatrix.Init(moduleValue_EMPTY)
 
-	m.addFinderPatterns(moduleMatrix)
+	m.setTopLeftFinderPattern(moduleMatrix)
+	m.setTopRightFinderPattern(moduleMatrix)
+	m.setBottomLeftFinderPattern(moduleMatrix)
 
 	moduleMatrix.PrintMatrix()
 	return *moduleMatrix
@@ -44,16 +48,27 @@ func (m *Moduler) qrCodeSize() int {
 	return (int(m.version)-1)*4 + 21
 }
 
-func (m *Moduler) addFinderPatterns(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
 	boundary := Boundary{
 		lowerRow: 0,
 		upperRow: finderPatternSize,
 		lowerCol: 0,
 		upperCol: finderPatternSize,
 	}
+
 	m.patchFinderPattern(moduleMatrix, boundary)
 
-	boundary = Boundary{
+	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
+		moduleMatrix.Set(i, boundary.upperCol, 0)
+	}
+
+	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
+		moduleMatrix.Set(boundary.upperRow, i, 0)
+	}
+}
+
+func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
+	boundary := Boundary{
 		lowerRow: 0,
 		upperRow: finderPatternSize,
 		lowerCol: m.qrCodeSize() - finderPatternSize,
@@ -61,7 +76,17 @@ func (m *Moduler) addFinderPatterns(moduleMatrix *matrix.Matrix[Module]) {
 	}
 	m.patchFinderPattern(moduleMatrix, boundary)
 
-	boundary = Boundary{
+	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
+		moduleMatrix.Set(i, boundary.lowerCol-1, 0)
+	}
+
+	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
+		moduleMatrix.Set(boundary.upperRow, i, 0)
+	}
+}
+
+func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
+	boundary := Boundary{
 		lowerRow: m.qrCodeSize() - finderPatternSize,
 		upperRow: m.qrCodeSize(),
 		lowerCol: 0,
@@ -69,6 +94,13 @@ func (m *Moduler) addFinderPatterns(moduleMatrix *matrix.Matrix[Module]) {
 	}
 	m.patchFinderPattern(moduleMatrix, boundary)
 
+	for i := boundary.lowerRow - 1; i < boundary.upperRow; i++ {
+		moduleMatrix.Set(i, boundary.upperCol, 0)
+	}
+
+	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
+		moduleMatrix.Set(boundary.lowerRow-1, i, 0)
+	}
 }
 
 func (m *Moduler) patchFinderPattern(moduleMatrix *matrix.Matrix[Module], boundary Boundary) {
