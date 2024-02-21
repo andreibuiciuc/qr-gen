@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"qr/qr-gen/matrix"
 	"qr/qr-gen/versioner"
+	"strconv"
 )
 
 type Module int
@@ -48,7 +49,7 @@ func NewModuler(version int) *Moduler {
 	}
 }
 
-func (m *Moduler) CreateModuleMatrix() matrix.Matrix[Module] {
+func (m *Moduler) CreateModuleMatrix(data string) matrix.Matrix[Module] {
 	qrCodeSize := m.qrCodeSize()
 
 	moduleMatrix := matrix.NewMatrix[Module](qrCodeSize, qrCodeSize)
@@ -63,6 +64,8 @@ func (m *Moduler) CreateModuleMatrix() matrix.Matrix[Module] {
 
 	m.reserveFormatArea(moduleMatrix)
 
+	m.placeDataBits(moduleMatrix, data)
+
 	moduleMatrix.PrintMatrix()
 	return *moduleMatrix
 }
@@ -74,7 +77,7 @@ func (m *Moduler) qrCodeSize() int {
 // Sets the top left finder pattern in the module matrix
 func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
 	boundary, _ := m.finderPatternBoundary(true, true)
-	m.patchPatternInMatrix(moduleMatrix, *boundary)
+	m.patchPattern(moduleMatrix, *boundary)
 
 	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
 		moduleMatrix.Set(i, boundary.upperCol, module_LIGHTEN)
@@ -88,7 +91,7 @@ func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
 // Sets the top right finder pattern in the module matrix
 func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
 	boundary, _ := m.finderPatternBoundary(true, false)
-	m.patchPatternInMatrix(moduleMatrix, *boundary)
+	m.patchPattern(moduleMatrix, *boundary)
 
 	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
 		moduleMatrix.Set(i, boundary.lowerCol-1, module_LIGHTEN)
@@ -102,7 +105,7 @@ func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[Module]) 
 // Sets the bottom left finder pattern in the module matrix
 func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
 	boundary, _ := m.finderPatternBoundary(false, true)
-	m.patchPatternInMatrix(moduleMatrix, *boundary)
+	m.patchPattern(moduleMatrix, *boundary)
 
 	for i := boundary.lowerRow - 1; i < boundary.upperRow; i++ {
 		moduleMatrix.Set(i, boundary.upperCol, module_LIGHTEN)
@@ -117,7 +120,7 @@ func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]
 func (m *Moduler) setAlignmentPatterns(moduleMatrix *matrix.Matrix[Module]) {
 	for _, coordinates := range allignmentPatternLocation[m.version] {
 		boundary := m.alignmentPatternBoundary(coordinates)
-		m.patchPatternInMatrix(moduleMatrix, boundary)
+		m.patchPattern(moduleMatrix, boundary)
 	}
 }
 
@@ -145,6 +148,7 @@ func (m *Moduler) setDarkModule(moduleMatrix *matrix.Matrix[Module]) {
 	moduleMatrix.Set(4*int(m.version)+9, 8, module_DARKEN)
 }
 
+// Sets the reserved format information area in the module matrix
 func (m *Moduler) reserveFormatArea(moduleMatrix *matrix.Matrix[Module]) {
 	boundary, _ := m.finderPatternBoundary(true, true)
 
@@ -177,7 +181,49 @@ func (m *Moduler) reserveFormatArea(moduleMatrix *matrix.Matrix[Module]) {
 	}
 }
 
-func (m *Moduler) patchPatternInMatrix(moduleMatrix *matrix.Matrix[Module], boundary Boundary) {
+func (m *Moduler) placeDataBits(moduleMatrix *matrix.Matrix[Module], data string) {
+	currentCellCoord := Coordintates{
+		row: m.qrCodeSize() - 1,
+		col: m.qrCodeSize() - 1,
+	}
+
+	indexInBits := 0
+	indexInModules := 0
+	isUpwardMovement := -1
+
+	for currentCellCoord.col >= 0 {
+
+		if val, _ := moduleMatrix.At(currentCellCoord.row, currentCellCoord.col); val == module_EMPTY {
+			if indexInBits < len(data) {
+				module, _ := strconv.ParseInt(string(data[indexInBits]), 2, 64)
+				moduleMatrix.Set(currentCellCoord.row, currentCellCoord.col, Module(module))
+				indexInBits += 1
+			}
+		}
+
+		if indexInModules%2 == 1 {
+			currentCellCoord.row += isUpwardMovement
+
+			if currentCellCoord.row == -1 || currentCellCoord.row == m.qrCodeSize() {
+				isUpwardMovement = -isUpwardMovement
+				currentCellCoord.row += isUpwardMovement
+				if currentCellCoord.col == 7 {
+					currentCellCoord.col -= 2
+				} else {
+					currentCellCoord.col -= 1
+				}
+			} else {
+				currentCellCoord.col += 1
+			}
+		} else {
+			currentCellCoord.col -= 1
+		}
+
+		indexInModules += 1
+	}
+}
+
+func (m *Moduler) patchPattern(moduleMatrix *matrix.Matrix[Module], boundary Boundary) {
 	for i := boundary.lowerRow; i < boundary.upperRow; i++ {
 		for j := boundary.lowerCol; j < boundary.upperCol; j++ {
 			if m.isPatternModuleDarken(i, j, boundary) {
