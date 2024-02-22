@@ -8,31 +8,28 @@ import (
 	"strconv"
 )
 
-type Moduler struct {
-	version versioner.QrVersion
+type ModulerInterface interface {
+	CreateModuleMatrix(data string) *matrix.Matrix[util.Module]
 }
+
+type Moduler struct {
+	version      versioner.QrVersion
+	moduleMatrix *matrix.Matrix[util.Module]
+}
+
 type Coordintates struct {
 	row int
 	col int
 }
 
 type Boundary struct {
-	lowerRow int
-	upperRow int
-	lowerCol int
-	upperCol int
+	lower Coordintates
+	upper Coordintates
 }
 
 const finderPatternSize = 7
 
-const (
-	module_LIGHTEN  util.Module = 0
-	module_DARKEN   util.Module = 1
-	module_RESERVED util.Module = 2
-	module_EMPTY    util.Module = 5
-)
-
-// Those locations stand only for alignment patterns that do not overlap with finder patterns
+// These locations stand only for alignment patterns that do not overlap with finder patterns
 // This can be improved by checking the overlap programatically
 var allignmentPatternLocation = map[versioner.QrVersion][]Coordintates{
 	1: {},
@@ -42,157 +39,172 @@ var allignmentPatternLocation = map[versioner.QrVersion][]Coordintates{
 	5: {Coordintates{30, 30}},
 }
 
-func NewModuler(version int) *Moduler {
+func NewModuler(version versioner.QrVersion) ModulerInterface {
 	return &Moduler{
-		version: versioner.QrVersion(version),
+		version: version,
 	}
 }
 
-func (m *Moduler) CreateModuleMatrix(data string) matrix.Matrix[util.Module] {
+func (m *Moduler) CreateModuleMatrix(data string) *matrix.Matrix[util.Module] {
 	qrCodeSize := m.qrCodeSize()
 
-	moduleMatrix := matrix.NewMatrix[util.Module](qrCodeSize, qrCodeSize)
-	moduleMatrix.Init(module_EMPTY)
+	m.moduleMatrix = matrix.NewMatrix[util.Module](qrCodeSize, qrCodeSize)
+	m.moduleMatrix.Init(util.Module_EMPTY)
 
-	m.setTopLeftFinderPattern(moduleMatrix)
-	m.setTopRightFinderPattern(moduleMatrix)
-	m.setBottomLeftFinderPattern(moduleMatrix)
-	m.setAlignmentPatterns(moduleMatrix)
-	m.setTimingPatterns(moduleMatrix)
-	m.setDarkModule(moduleMatrix)
+	m.setTopLeftFinderPattern()
+	m.setTopRightFinderPattern()
+	m.setBottomLeftFinderPattern()
+	m.setAlignmentPatterns()
+	m.setTimingPatterns()
+	m.setDarkModule()
 
-	m.reserveFormatArea(moduleMatrix)
+	m.reserveFormatArea()
 
-	m.placeDataBits(moduleMatrix, data)
+	m.placeDataBits(data)
+	m.moduleMatrix.PrintMatrix()
 
-	moduleMatrix.PrintMatrix()
-	return *moduleMatrix
+	return m.moduleMatrix
 }
 
 func (m *Moduler) qrCodeSize() int {
 	return (int(m.version)-1)*4 + 21
 }
 
-// Sets the top left finder pattern in the module matrix
-func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[util.Module]) {
-	boundary, _ := m.finderPatternBoundary(true, true)
-	m.patchPattern(moduleMatrix, *boundary)
+// MODULE PLACEMENT
 
-	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
-		moduleMatrix.Set(i, boundary.upperCol, module_LIGHTEN)
+// Sets the top left finder pattern in the module matrix
+func (m *Moduler) setTopLeftFinderPattern() {
+	boundary, _ := m.finderPatternBoundary(true, true)
+	m.patchPattern(*boundary, util.Module_FINDER_LIGHTEN, util.Module_FINDER_DARKEN)
+
+	for i := boundary.lower.row; i <= boundary.upper.row; i++ {
+		m.moduleMatrix.Set(i, boundary.upper.col, util.Module_SEPARATOR)
 	}
 
-	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
-		moduleMatrix.Set(boundary.upperRow, i, module_LIGHTEN)
+	for i := boundary.lower.col; i < boundary.upper.col; i++ {
+		m.moduleMatrix.Set(boundary.upper.row, i, util.Module_SEPARATOR)
 	}
 }
 
 // Sets the top right finder pattern in the module matrix
-func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[util.Module]) {
+func (m *Moduler) setTopRightFinderPattern() {
 	boundary, _ := m.finderPatternBoundary(true, false)
-	m.patchPattern(moduleMatrix, *boundary)
+	m.patchPattern(*boundary, util.Module_FINDER_LIGHTEN, util.Module_FINDER_DARKEN)
 
-	for i := boundary.lowerRow; i <= boundary.upperRow; i++ {
-		moduleMatrix.Set(i, boundary.lowerCol-1, module_LIGHTEN)
+	for i := boundary.lower.row; i <= boundary.upper.row; i++ {
+		m.moduleMatrix.Set(i, boundary.lower.col-1, util.Module_SEPARATOR)
 	}
 
-	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
-		moduleMatrix.Set(boundary.upperRow, i, module_LIGHTEN)
+	for i := boundary.lower.col; i < boundary.upper.col; i++ {
+		m.moduleMatrix.Set(boundary.upper.row, i, util.Module_SEPARATOR)
 	}
 }
 
 // Sets the bottom left finder pattern in the module matrix
-func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[util.Module]) {
+func (m *Moduler) setBottomLeftFinderPattern() {
 	boundary, _ := m.finderPatternBoundary(false, true)
-	m.patchPattern(moduleMatrix, *boundary)
+	m.patchPattern(*boundary, util.Module_FINDER_LIGHTEN, util.Module_FINDER_DARKEN)
 
-	for i := boundary.lowerRow - 1; i < boundary.upperRow; i++ {
-		moduleMatrix.Set(i, boundary.upperCol, module_LIGHTEN)
+	for i := boundary.lower.row - 1; i < boundary.upper.row; i++ {
+		m.moduleMatrix.Set(i, boundary.upper.col, util.Module_SEPARATOR)
 	}
 
-	for i := boundary.lowerCol; i < boundary.upperCol; i++ {
-		moduleMatrix.Set(boundary.lowerRow-1, i, module_LIGHTEN)
+	for i := boundary.lower.col; i < boundary.upper.col; i++ {
+		m.moduleMatrix.Set(boundary.lower.row-1, i, util.Module_SEPARATOR)
 	}
 }
 
 // Sets the alignment patterns in the module matrix
-func (m *Moduler) setAlignmentPatterns(moduleMatrix *matrix.Matrix[util.Module]) {
+func (m *Moduler) setAlignmentPatterns() {
 	for _, coordinates := range allignmentPatternLocation[m.version] {
 		boundary := m.alignmentPatternBoundary(coordinates)
-		m.patchPattern(moduleMatrix, boundary)
+		m.patchPattern(boundary, util.Module_ALIGNMENT_LIGHTEN, util.Module_ALIGNMENT_DARKEN)
 	}
 }
 
 // Sets the timing patterns in the module matrix
-func (m *Moduler) setTimingPatterns(moduleMatrix *matrix.Matrix[util.Module]) {
+func (m *Moduler) setTimingPatterns() {
 	topLeftFinderBoundary, _ := m.finderPatternBoundary(true, true)
 	topRightFinderBoundary, _ := m.finderPatternBoundary(true, false)
 	bottomLeftFinderBoundary, _ := m.finderPatternBoundary(false, true)
 
 	val := 1
-	for i := topLeftFinderBoundary.upperCol - 1; i < topRightFinderBoundary.lowerCol; i++ {
-		moduleMatrix.Set(6, i, util.Module(val))
+	for i := topLeftFinderBoundary.upper.col - 1; i < topRightFinderBoundary.lower.col; i++ {
+		if val == 0 {
+			m.moduleMatrix.Set(6, i, util.Module_TIMING_LIGHTEN)
+		} else {
+			m.moduleMatrix.Set(6, i, util.Module_TIMING_DARKEN)
+		}
 		val = (val + 1) % 2
 	}
 
 	val = 1
-	for i := topLeftFinderBoundary.upperRow - 1; i < bottomLeftFinderBoundary.lowerRow; i++ {
-		moduleMatrix.Set(i, 6, util.Module(val))
+	for i := topLeftFinderBoundary.upper.row - 1; i < bottomLeftFinderBoundary.lower.row; i++ {
+		if val == 0 {
+			m.moduleMatrix.Set(i, 6, util.Module_TIMING_LIGHTEN)
+		} else {
+			m.moduleMatrix.Set(i, 6, util.Module_TIMING_DARKEN)
+		}
 		val = (val + 1) % 2
 	}
 }
 
 // Sets the dark module in the module matrix
-func (m *Moduler) setDarkModule(moduleMatrix *matrix.Matrix[util.Module]) {
-	moduleMatrix.Set(4*int(m.version)+9, 8, module_DARKEN)
+func (m *Moduler) setDarkModule() {
+	m.moduleMatrix.Set(4*int(m.version)+9, 8, util.Module_DARK)
 }
 
 // Sets the reserved format information area in the module matrix
-func (m *Moduler) reserveFormatArea(moduleMatrix *matrix.Matrix[util.Module]) {
+func (m *Moduler) reserveFormatArea() {
 	boundary, _ := m.finderPatternBoundary(true, true)
 
-	for i := boundary.lowerRow; i < boundary.upperRow+2; i++ {
-		if val, _ := moduleMatrix.At(i, boundary.upperCol+1); val == module_EMPTY {
-			moduleMatrix.Set(i, boundary.upperCol+1, module_RESERVED)
+	for i := boundary.lower.row; i < boundary.upper.row+2; i++ {
+		if val, _ := m.moduleMatrix.At(i, boundary.upper.col+1); val == util.Module_EMPTY {
+			m.moduleMatrix.Set(i, boundary.upper.col+1, util.Module_RESERVED)
 		}
 	}
 
-	for i := boundary.lowerCol; i < boundary.upperCol+2; i++ {
-		if val, _ := moduleMatrix.At(boundary.upperRow+1, i); val == module_EMPTY {
-			moduleMatrix.Set(boundary.upperRow+1, i, module_RESERVED)
+	for i := boundary.lower.col; i < boundary.upper.col+2; i++ {
+		if val, _ := m.moduleMatrix.At(boundary.upper.row+1, i); val == util.Module_EMPTY {
+			m.moduleMatrix.Set(boundary.upper.row+1, i, util.Module_RESERVED)
 		}
 	}
 
 	boundary, _ = m.finderPatternBoundary(true, false)
 
-	for i := boundary.lowerCol - 1; i < boundary.upperCol; i++ {
-		if val, _ := moduleMatrix.At(boundary.upperRow+1, i); val == module_EMPTY {
-			moduleMatrix.Set(boundary.upperRow+1, i, module_RESERVED)
+	for i := boundary.lower.col - 1; i < boundary.upper.col; i++ {
+		if val, _ := m.moduleMatrix.At(boundary.upper.row+1, i); val == util.Module_EMPTY {
+			m.moduleMatrix.Set(boundary.upper.row+1, i, util.Module_RESERVED)
 		}
 	}
 
 	boundary, _ = m.finderPatternBoundary(false, true)
 
-	for i := boundary.lowerRow - 1; i < boundary.upperRow; i++ {
-		if val, _ := moduleMatrix.At(i, boundary.upperCol+1); val == module_EMPTY {
-			moduleMatrix.Set(i, boundary.upperCol+1, module_RESERVED)
+	for i := boundary.lower.row - 1; i < boundary.upper.row; i++ {
+		if val, _ := m.moduleMatrix.At(i, boundary.upper.col+1); val == util.Module_EMPTY {
+			m.moduleMatrix.Set(i, boundary.upper.col+1, util.Module_RESERVED)
 		}
 	}
 }
 
 // Places the encoded data bits in the module matrix
-func (m *Moduler) placeDataBits(moduleMatrix *matrix.Matrix[util.Module], data string) {
+func (m *Moduler) placeDataBits(data string) {
 	currentCellCoord := Coordintates{row: m.qrCodeSize() - 1, col: m.qrCodeSize() - 1}
 
 	indexInBits := 0
 	indexInModules := 0
 	isUpwardMovement := -1
+	module := util.Module_EMPTY
 
 	for currentCellCoord.col >= 0 {
 
-		if val, _ := moduleMatrix.At(currentCellCoord.row, currentCellCoord.col); val == module_EMPTY {
-			module, _ := strconv.ParseInt(string(data[indexInBits]), 2, 64)
-			moduleMatrix.Set(currentCellCoord.row, currentCellCoord.col, util.Module(module))
+		if val, _ := m.moduleMatrix.At(currentCellCoord.row, currentCellCoord.col); val == util.Module_EMPTY {
+			if bit, _ := strconv.ParseInt(string(data[indexInBits]), 2, 64); bit == 0 {
+				module = util.Module_LIGHTEN
+			} else {
+				module = util.Module_DARKEN
+			}
+			m.moduleMatrix.Set(currentCellCoord.row, currentCellCoord.col, util.Module(module))
 			indexInBits += 1
 		}
 
@@ -219,53 +231,47 @@ func (m *Moduler) placeDataBits(moduleMatrix *matrix.Matrix[util.Module], data s
 }
 
 // Patches a squared shape pattern of modules alternatively (finder, alignment)
-func (m *Moduler) patchPattern(moduleMatrix *matrix.Matrix[util.Module], boundary Boundary) {
-	for i := boundary.lowerRow; i < boundary.upperRow; i++ {
-		for j := boundary.lowerCol; j < boundary.upperCol; j++ {
+func (m *Moduler) patchPattern(boundary Boundary, ligthenModule util.Module, darkenModule util.Module) {
+	for i := boundary.lower.row; i < boundary.upper.row; i++ {
+		for j := boundary.lower.col; j < boundary.upper.col; j++ {
 			if m.isPatternModuleDarken(i, j, boundary) {
-				moduleMatrix.Set(i, j, module_DARKEN)
+				m.moduleMatrix.Set(i, j, darkenModule)
 			} else if m.isPatternModuleLighten(i, j, boundary) {
-				moduleMatrix.Set(i, j, module_LIGHTEN)
+				m.moduleMatrix.Set(i, j, ligthenModule)
 			} else {
-				moduleMatrix.Set(i, j, module_DARKEN)
+				m.moduleMatrix.Set(i, j, darkenModule)
 			}
 		}
 	}
 }
 
 func (m *Moduler) isPatternModuleDarken(i, j int, boundary Boundary) bool {
-	return i == boundary.lowerRow || i == boundary.upperRow-1 || j == boundary.lowerCol || j == boundary.upperCol-1
+	return i == boundary.lower.row || i == boundary.upper.row-1 || j == boundary.lower.col || j == boundary.upper.col-1
 }
 
 func (m *Moduler) isPatternModuleLighten(i, j int, boundary Boundary) bool {
-	return i == boundary.lowerRow+1 || i == boundary.upperRow-2 || j == boundary.lowerCol+1 || j == boundary.upperCol-2
+	return i == boundary.lower.row+1 || i == boundary.upper.row-2 || j == boundary.lower.col+1 || j == boundary.upper.col-2
 }
 
 func (m *Moduler) finderPatternBoundary(top, left bool) (*Boundary, error) {
 	if top && left {
 		return &Boundary{
-			lowerRow: 0,
-			upperRow: finderPatternSize,
-			lowerCol: 0,
-			upperCol: finderPatternSize,
+			lower: Coordintates{row: 0, col: 0},
+			upper: Coordintates{row: finderPatternSize, col: finderPatternSize},
 		}, nil
 	}
 
 	if top && !left {
 		return &Boundary{
-			lowerRow: 0,
-			upperRow: finderPatternSize,
-			lowerCol: m.qrCodeSize() - finderPatternSize,
-			upperCol: m.qrCodeSize(),
+			lower: Coordintates{row: 0, col: m.qrCodeSize() - finderPatternSize},
+			upper: Coordintates{row: finderPatternSize, col: m.qrCodeSize()},
 		}, nil
 	}
 
 	if !top && left {
 		return &Boundary{
-			lowerRow: m.qrCodeSize() - finderPatternSize,
-			upperRow: m.qrCodeSize(),
-			lowerCol: 0,
-			upperCol: finderPatternSize,
+			lower: Coordintates{row: m.qrCodeSize() - finderPatternSize, col: 0},
+			upper: Coordintates{row: m.qrCodeSize(), col: finderPatternSize},
 		}, nil
 	}
 
@@ -274,9 +280,7 @@ func (m *Moduler) finderPatternBoundary(top, left bool) (*Boundary, error) {
 
 func (m *Moduler) alignmentPatternBoundary(coordinates Coordintates) Boundary {
 	return Boundary{
-		lowerRow: coordinates.row - 2,
-		upperRow: coordinates.row + 3,
-		lowerCol: coordinates.col - 2,
-		upperCol: coordinates.col + 3,
+		lower: Coordintates{row: coordinates.row - 2, col: coordinates.col - 2},
+		upper: Coordintates{row: coordinates.row + 3, col: coordinates.col + 3},
 	}
 }

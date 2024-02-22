@@ -26,9 +26,9 @@ func TestModuler(t *testing.T) {
 	i := interleaver.New()
 	data := i.GetFinalMessage(encoded, version, versioner.QrEcMedium)
 
-	m := NewModuler(int(version))
+	m := NewModuler(version)
 	matrix := m.CreateModuleMatrix(data)
 
 	qi := img.New()
-	qi.CreateImage("test.png", matrix.GetMatrix())
+	qi.CreateImage("test2.png", matrix.GetMatrix())
 }
