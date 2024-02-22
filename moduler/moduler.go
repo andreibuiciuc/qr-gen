@@ -3,11 +3,10 @@ package moduler
 import (
 	"fmt"
 	"qr/qr-gen/matrix"
+	"qr/qr-gen/util"
 	"qr/qr-gen/versioner"
 	"strconv"
 )
-
-type Module int
 
 type Moduler struct {
 	version versioner.QrVersion
@@ -27,10 +26,10 @@ type Boundary struct {
 const finderPatternSize = 7
 
 const (
-	module_LIGHTEN  Module = 0
-	module_DARKEN   Module = 1
-	module_RESERVED Module = 2
-	module_EMPTY    Module = 5
+	module_LIGHTEN  util.Module = 0
+	module_DARKEN   util.Module = 1
+	module_RESERVED util.Module = 2
+	module_EMPTY    util.Module = 5
 )
 
 // Those locations stand only for alignment patterns that do not overlap with finder patterns
@@ -49,10 +48,10 @@ func NewModuler(version int) *Moduler {
 	}
 }
 
-func (m *Moduler) CreateModuleMatrix(data string) matrix.Matrix[Module] {
+func (m *Moduler) CreateModuleMatrix(data string) matrix.Matrix[util.Module] {
 	qrCodeSize := m.qrCodeSize()
 
-	moduleMatrix := matrix.NewMatrix[Module](qrCodeSize, qrCodeSize)
+	moduleMatrix := matrix.NewMatrix[util.Module](qrCodeSize, qrCodeSize)
 	moduleMatrix.Init(module_EMPTY)
 
 	m.setTopLeftFinderPattern(moduleMatrix)
@@ -75,7 +74,7 @@ func (m *Moduler) qrCodeSize() int {
 }
 
 // Sets the top left finder pattern in the module matrix
-func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[util.Module]) {
 	boundary, _ := m.finderPatternBoundary(true, true)
 	m.patchPattern(moduleMatrix, *boundary)
 
@@ -89,7 +88,7 @@ func (m *Moduler) setTopLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
 }
 
 // Sets the top right finder pattern in the module matrix
-func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[util.Module]) {
 	boundary, _ := m.finderPatternBoundary(true, false)
 	m.patchPattern(moduleMatrix, *boundary)
 
@@ -103,7 +102,7 @@ func (m *Moduler) setTopRightFinderPattern(moduleMatrix *matrix.Matrix[Module]) 
 }
 
 // Sets the bottom left finder pattern in the module matrix
-func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[util.Module]) {
 	boundary, _ := m.finderPatternBoundary(false, true)
 	m.patchPattern(moduleMatrix, *boundary)
 
@@ -117,7 +116,7 @@ func (m *Moduler) setBottomLeftFinderPattern(moduleMatrix *matrix.Matrix[Module]
 }
 
 // Sets the alignment patterns in the module matrix
-func (m *Moduler) setAlignmentPatterns(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) setAlignmentPatterns(moduleMatrix *matrix.Matrix[util.Module]) {
 	for _, coordinates := range allignmentPatternLocation[m.version] {
 		boundary := m.alignmentPatternBoundary(coordinates)
 		m.patchPattern(moduleMatrix, boundary)
@@ -125,31 +124,31 @@ func (m *Moduler) setAlignmentPatterns(moduleMatrix *matrix.Matrix[Module]) {
 }
 
 // Sets the timing patterns in the module matrix
-func (m *Moduler) setTimingPatterns(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) setTimingPatterns(moduleMatrix *matrix.Matrix[util.Module]) {
 	topLeftFinderBoundary, _ := m.finderPatternBoundary(true, true)
 	topRightFinderBoundary, _ := m.finderPatternBoundary(true, false)
 	bottomLeftFinderBoundary, _ := m.finderPatternBoundary(false, true)
 
 	val := 1
 	for i := topLeftFinderBoundary.upperCol - 1; i < topRightFinderBoundary.lowerCol; i++ {
-		moduleMatrix.Set(6, i, Module(val))
+		moduleMatrix.Set(6, i, util.Module(val))
 		val = (val + 1) % 2
 	}
 
 	val = 1
 	for i := topLeftFinderBoundary.upperRow - 1; i < bottomLeftFinderBoundary.lowerRow; i++ {
-		moduleMatrix.Set(i, 6, Module(val))
+		moduleMatrix.Set(i, 6, util.Module(val))
 		val = (val + 1) % 2
 	}
 }
 
 // Sets the dark module in the module matrix
-func (m *Moduler) setDarkModule(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) setDarkModule(moduleMatrix *matrix.Matrix[util.Module]) {
 	moduleMatrix.Set(4*int(m.version)+9, 8, module_DARKEN)
 }
 
 // Sets the reserved format information area in the module matrix
-func (m *Moduler) reserveFormatArea(moduleMatrix *matrix.Matrix[Module]) {
+func (m *Moduler) reserveFormatArea(moduleMatrix *matrix.Matrix[util.Module]) {
 	boundary, _ := m.finderPatternBoundary(true, true)
 
 	for i := boundary.lowerRow; i < boundary.upperRow+2; i++ {
@@ -181,11 +180,9 @@ func (m *Moduler) reserveFormatArea(moduleMatrix *matrix.Matrix[Module]) {
 	}
 }
 
-func (m *Moduler) placeDataBits(moduleMatrix *matrix.Matrix[Module], data string) {
-	currentCellCoord := Coordintates{
-		row: m.qrCodeSize() - 1,
-		col: m.qrCodeSize() - 1,
-	}
+// Places the encoded data bits in the module matrix
+func (m *Moduler) placeDataBits(moduleMatrix *matrix.Matrix[util.Module], data string) {
+	currentCellCoord := Coordintates{row: m.qrCodeSize() - 1, col: m.qrCodeSize() - 1}
 
 	indexInBits := 0
 	indexInModules := 0
@@ -194,11 +191,9 @@ func (m *Moduler) placeDataBits(moduleMatrix *matrix.Matrix[Module], data string
 	for currentCellCoord.col >= 0 {
 
 		if val, _ := moduleMatrix.At(currentCellCoord.row, currentCellCoord.col); val == module_EMPTY {
-			if indexInBits < len(data) {
-				module, _ := strconv.ParseInt(string(data[indexInBits]), 2, 64)
-				moduleMatrix.Set(currentCellCoord.row, currentCellCoord.col, Module(module))
-				indexInBits += 1
-			}
+			module, _ := strconv.ParseInt(string(data[indexInBits]), 2, 64)
+			moduleMatrix.Set(currentCellCoord.row, currentCellCoord.col, util.Module(module))
+			indexInBits += 1
 		}
 
 		if indexInModules%2 == 1 {
@@ -223,7 +218,8 @@ func (m *Moduler) placeDataBits(moduleMatrix *matrix.Matrix[Module], data string
 	}
 }
 
-func (m *Moduler) patchPattern(moduleMatrix *matrix.Matrix[Module], boundary Boundary) {
+// Patches a squared shape pattern of modules alternatively (finder, alignment)
+func (m *Moduler) patchPattern(moduleMatrix *matrix.Matrix[util.Module], boundary Boundary) {
 	for i := boundary.lowerRow; i < boundary.upperRow; i++ {
 		for j := boundary.lowerCol; j < boundary.upperCol; j++ {
 			if m.isPatternModuleDarken(i, j, boundary) {
