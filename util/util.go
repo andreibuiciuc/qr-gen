@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+type Module int
 type QrErrorCorrectionInfo struct {
 	TotalDataCodewords          int
 	ECCodewordsPerBlock         int
@@ -41,6 +42,27 @@ var QrEcInfo = map[string]QrErrorCorrectionInfo{
 	"5-M": {86, 24, 2, 43, 0, 0},
 	"5-Q": {62, 18, 2, 15, 2, 16},
 	"5-H": {46, 22, 2, 11, 2, 12},
+}
+
+const (
+	Module_LIGHTEN           Module = 0
+	Module_DARKEN            Module = 1
+	Module_FINDER_LIGHTEN    Module = 2
+	Module_FINDER_DARKEN     Module = 3
+	Module_SEPARATOR         Module = 4
+	Module_ALIGNMENT_LIGHTEN Module = 5
+	Module_ALIGNMENT_DARKEN  Module = 6
+	Module_TIMING_LIGHTEN    Module = 7
+	Module_TIMING_DARKEN     Module = 8
+	Module_DARK              Module = 9
+	Module_RESERVED          Module = 10
+	Module_EMPTY             Module = 11
+)
+
+func IsModuleLighten(module Module) bool {
+	return module == Module_LIGHTEN || module == Module_FINDER_LIGHTEN ||
+		module == Module_ALIGNMENT_LIGHTEN || module == Module_TIMING_LIGHTEN ||
+		module == Module_SEPARATOR || module == Module_RESERVED
 }
 
 // ComputeAlphaToPower computes the power of a to p
@@ -107,6 +129,9 @@ func ConvertIntListToBin(list []int) []string {
 // ConvertIntListToCodewords converts a list of integers into
 // a binary string of codewords.
 func ConvertIntListToCodewords(list []int) string {
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+		list[i], list[j] = list[j], list[i]
+	}
 	return strings.Join(ConvertIntListToBin(list), "")
 }
 
@@ -161,8 +186,4 @@ func SplitInGroups(s string, n int) []string {
 
 func GetECMappingKey(version int, lvl string) string {
 	return strconv.Itoa(int(version)) + "-" + string(lvl)
-}
-
-func testAndrew() {
-
 }
