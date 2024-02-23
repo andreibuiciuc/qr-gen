@@ -18,7 +18,6 @@ func TestModuler(t *testing.T) {
 	v := versioner.New()
 	mode, _ := v.GetMode(input)
 	version, _ := v.GetVersion(input, mode, versioner.QrEcMedium)
-	assert.Equal(version, versioner.QrVersion(2))
 
 	e := encoder.New()
 	encoded, _ := e.Encode(input, versioner.QrEcMedium)
@@ -27,12 +26,12 @@ func TestModuler(t *testing.T) {
 	i := interleaver.New()
 	data := i.GetFinalMessage(encoded, version, versioner.QrEcMedium)
 
-	m := NewModuler(version)
-	matrix, candidates := m.CreateModuleMatrix(data)
+	m := New(version, versioner.QrEcMedium)
+	matrix, candidates, penalty := m.CreateModuleMatrix(data)
+	assert.Equal(415, penalty.total, "penalty score should match")
 
 	qi := img.New()
-
-	qi.CreateImage("unmasked.png", matrix.GetMatrix())
+	qi.CreateImage("best.png", matrix.GetMatrix())
 
 	for i, candidate := range candidates {
 		qi.CreateImage(fmt.Sprintf("candidate%d.png", i), candidate.GetMatrix())

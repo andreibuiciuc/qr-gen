@@ -8,7 +8,7 @@ import (
 )
 
 type QrVersion int
-type QrEcLevel string
+type QrEcLevel rune
 type QrMode string
 type QrModeIndicator string
 
@@ -71,10 +71,10 @@ const (
 )
 
 const (
-	QrEcLow      QrEcLevel = "L"
-	QrEcMedium   QrEcLevel = "M"
-	QrEcQuartile QrEcLevel = "Q"
-	QrECHigh     QrEcLevel = "H"
+	QrEcLow      QrEcLevel = 'L'
+	QrEcMedium   QrEcLevel = 'M'
+	QrEcQuartile QrEcLevel = 'Q'
+	QrECHigh     QrEcLevel = 'H'
 )
 
 const (

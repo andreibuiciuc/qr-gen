@@ -10,11 +10,12 @@ import (
 )
 
 type ModulerInterface interface {
-	CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module])
+	CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module], Penalty)
 }
 
 type Moduler struct {
 	version      versioner.QrVersion
+	ecLevel      versioner.QrEcLevel
 	moduleMatrix *matrix.Matrix[util.Module]
 }
 
@@ -28,7 +29,18 @@ type Boundary struct {
 	upper Coordinates
 }
 
+type Penalty struct {
+	score1 int
+	score2 int
+	score3 int
+	score4 int
+	total  int
+}
+
 const finderPatternSize = 7
+
+var rulePattern = []util.Module{util.Module_DARKEN, util.Module_LIGHTEN, util.Module_DARKEN, util.Module_DARKEN, util.Module_DARKEN, util.Module_LIGHTEN, util.Module_DARKEN, util.Module_LIGHTEN, util.Module_LIGHTEN, util.Module_LIGHTEN, util.Module_LIGHTEN}
+var reversedRulePattern = []util.Module{util.Module_LIGHTEN, util.Module_LIGHTEN, util.Module_LIGHTEN, util.Module_LIGHTEN, util.Module_DARKEN, util.Module_LIGHTEN, util.Module_DARKEN, util.Module_DARKEN, util.Module_DARKEN, util.Module_LIGHTEN, util.Module_DARKEN}
 
 // These locations stand only for alignment patterns that do not overlap with finder patterns
 // This can be improved by checking the overlap programatically
@@ -67,15 +79,26 @@ var maskFormula = map[int]func(Coordinates) bool{
 	},
 }
 
-func NewModuler(version versioner.QrVersion) ModulerInterface {
+func New(version versioner.QrVersion, ecLevel versioner.QrEcLevel) ModulerInterface {
 	return &Moduler{
 		version: version,
+		ecLevel: ecLevel,
 	}
 }
 
-func (m *Moduler) CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module]) {
-	qrCodeSize := m.qrCodeSize()
+// TODO: Refactor this after defining better test cases
+func (m *Moduler) CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module], Penalty) {
+	m.prepareModuleMatrix(data)
 
+	moduleCoords := m.placeDataBits(data)
+	candidates := m.getModuleMatrixCandidates(moduleCoords)
+	matrix, penalty := m.getBestMaskedMatrix(candidates)
+
+	return matrix, candidates, penalty
+}
+
+func (m *Moduler) prepareModuleMatrix(data string) {
+	qrCodeSize := m.qrCodeSize()
 	m.moduleMatrix = matrix.NewMatrix[util.Module](qrCodeSize, qrCodeSize)
 	m.moduleMatrix.Init(util.Module_EMPTY)
 
@@ -85,13 +108,7 @@ func (m *Moduler) CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], 
 	m.setAlignmentPatterns()
 	m.setTimingPatterns()
 	m.setDarkModule()
-
 	m.reserveFormatArea()
-
-	moduleCoords := m.placeDataBits(data)
-	matrixCandidates := m.getModuleMatrixCandidates(moduleCoords)
-
-	return m.moduleMatrix, matrixCandidates
 }
 
 func (m *Moduler) qrCodeSize() int {
@@ -184,15 +201,15 @@ func (m *Moduler) setDarkModule() {
 func (m *Moduler) reserveFormatArea() {
 	boundary, _ := m.finderPatternBoundary(true, true)
 
-	for i := boundary.lower.row; i < boundary.upper.row+2; i++ {
-		if val, _ := m.moduleMatrix.At(i, boundary.upper.col+1); val == util.Module_EMPTY {
-			m.moduleMatrix.Set(i, boundary.upper.col+1, util.Module_RESERVED)
-		}
-	}
-
 	for i := boundary.lower.col; i < boundary.upper.col+2; i++ {
 		if val, _ := m.moduleMatrix.At(boundary.upper.row+1, i); val == util.Module_EMPTY {
 			m.moduleMatrix.Set(boundary.upper.row+1, i, util.Module_RESERVED)
+		}
+	}
+
+	for i := boundary.lower.row; i < boundary.upper.row+2; i++ {
+		if val, _ := m.moduleMatrix.At(i, boundary.upper.col+1); val == util.Module_EMPTY {
+			m.moduleMatrix.Set(i, boundary.upper.col+1, util.Module_RESERVED)
 		}
 	}
 
@@ -330,6 +347,7 @@ func (m *Moduler) getModuleMatrixCandidates(moduleCoords []Coordinates) []*matri
 func (m *Moduler) maskModuleMatrix(moduleCoords []Coordinates, rule int) *matrix.Matrix[util.Module] {
 	matrixCandidate := matrix.NewMatrix[util.Module](m.qrCodeSize(), m.qrCodeSize())
 	matrixCandidate.SetMatrix(m.moduleMatrix.GetMatrix())
+	m.setFormatInformationModules(matrixCandidate, rule)
 
 	for _, c := range moduleCoords {
 		module, _ := matrixCandidate.At(c.row, c.col)
@@ -350,4 +368,200 @@ func (m *Moduler) toggleModule(c Coordinates) util.Module {
 		return util.Module_DARKEN
 	}
 	return util.Module_LIGHTEN
+}
+
+func (m *Moduler) setFormatInformationModules(matrix *matrix.Matrix[util.Module], rule int) {
+	boundary, _ := m.finderPatternBoundary(true, true)
+	format := util.FormatInformationStrings[rune(m.ecLevel)][rule]
+	format += format
+	index := 0
+
+	for i := boundary.lower.col; i < boundary.upper.col+1; i++ {
+		if val, _ := matrix.At(boundary.upper.row+1, i); !util.IsModuleSkippedForFormat(val) {
+			bit, _ := strconv.ParseInt(string(format[index]), 2, 64)
+			matrix.Set(boundary.upper.row+1, i, util.GetDataModule(int(bit)))
+			index += 1
+		}
+	}
+
+	for i := boundary.upper.row + 1; i >= 0; i-- {
+		if val, _ := matrix.At(i, boundary.upper.col+1); !util.IsModuleSkippedForFormat(val) {
+			bit, _ := strconv.ParseInt(string(format[index]), 2, 64)
+			matrix.Set(i, boundary.upper.col+1, util.GetDataModule(int(bit)))
+			index += 1
+		}
+	}
+
+	boundary, _ = m.finderPatternBoundary(false, true)
+
+	for i := boundary.upper.row - 1; i >= boundary.lower.row-1; i-- {
+		if val, _ := matrix.At(i, boundary.upper.col+1); !util.IsModuleSkippedForFormat(val) {
+			bit, _ := strconv.ParseInt(string(format[index]), 2, 64)
+			matrix.Set(i, boundary.upper.col+1, util.GetDataModule(int(bit)))
+			index += 1
+		}
+	}
+
+	boundary, _ = m.finderPatternBoundary(true, false)
+
+	for i := boundary.lower.col - 1; i < boundary.upper.col; i++ {
+		if val, _ := matrix.At(boundary.upper.row+1, i); !util.IsModuleSkippedForFormat(val) {
+			bit, _ := strconv.ParseInt(string(format[index]), 2, 64)
+			matrix.Set(boundary.upper.row+1, i, util.GetDataModule(int(bit)))
+			index += 1
+		}
+	}
+}
+
+func (m *Moduler) getBestMaskedMatrix(candidates []*matrix.Matrix[util.Module]) (*matrix.Matrix[util.Module], Penalty) {
+	penalty := m.evaluateMatrixCandidate(candidates[0])
+	matrix := candidates[0]
+
+	for i := 1; i < len(candidates); i++ {
+		currentPenalty := m.evaluateMatrixCandidate(candidates[i])
+		if currentPenalty.total < penalty.total {
+			penalty = currentPenalty
+			matrix = candidates[i]
+		}
+	}
+
+	return matrix, penalty
+}
+
+func (m *Moduler) evaluateMatrixCandidate(matrix *matrix.Matrix[util.Module]) Penalty {
+	penalty := Penalty{}
+	penalty.score1 = m.computeFirstPenalty(matrix)
+	penalty.score2 = m.computeSecondPenalty(matrix)
+	penalty.score3 = m.computeThirdPenalty(matrix)
+	penalty.score4 = m.computeFourthPenalty(matrix)
+	penalty.total = penalty.score1 + penalty.score2 + penalty.score3 + penalty.score4
+	return penalty
+}
+
+// Implements the first penalty score strategy
+func (m *Moduler) computeFirstPenalty(matrix *matrix.Matrix[util.Module]) int {
+	rowPenalty := 0
+	colPenalty := 0
+
+	for i := 0; i < m.qrCodeSize(); i++ {
+		row, _ := matrix.RowAt(i)
+		rowPenalty += m.computeModulesLinePenalty(row)
+		col, _ := matrix.ColumnAt(i)
+		colPenalty += m.computeModulesLinePenalty(col)
+	}
+
+	return rowPenalty + colPenalty
+}
+
+// Implements the second penalty score strategy
+func (m *Moduler) computeSecondPenalty(matrix *matrix.Matrix[util.Module]) int {
+	count := 0
+
+	for i := 0; i < matrix.Width()-1; i++ {
+		for j := 0; j < matrix.Height()-1; j++ {
+			module, _ := matrix.At(i, j)
+			moduleRight, _ := matrix.At(i, j+1)
+			moduleBottom, _ := matrix.At(i+1, j)
+			moduleOpposite, _ := matrix.At(i+1, j+1)
+
+			if util.IsModuleLighten(module) == util.IsModuleLighten(moduleRight) &&
+				util.IsModuleLighten(module) == util.IsModuleLighten(moduleBottom) &&
+				util.IsModuleLighten(module) == util.IsModuleLighten(moduleOpposite) {
+				count += 1
+			}
+		}
+	}
+
+	return count * 3
+}
+
+// Implements the third penalty score strategy
+func (m *Moduler) computeThirdPenalty(matrix *matrix.Matrix[util.Module]) int {
+	count := 0
+
+	for i := 0; i < m.qrCodeSize(); i++ {
+		row, _ := matrix.RowAt(i)
+		for col := 0; col < m.qrCodeSize()-11+1; col++ {
+			if m.isRulePattern(rulePattern, row[col:col+11]) {
+				count += 1
+			}
+			if m.isRulePattern(reversedRulePattern, row[col:col+11]) {
+				count += 1
+			}
+		}
+	}
+
+	for i := 0; i < m.qrCodeSize(); i++ {
+		col, _ := matrix.ColumnAt(i)
+		for row := 0; row < m.qrCodeSize()-11+1; row++ {
+			if m.isRulePattern(rulePattern, col[row:row+11]) {
+				count += 1
+			}
+			if m.isRulePattern(reversedRulePattern, col[row:row+11]) {
+				count += 1
+			}
+		}
+	}
+
+	return count * 40
+}
+
+// Implements the fourth penalty score strategy
+func (m *Moduler) computeFourthPenalty(matrix *matrix.Matrix[util.Module]) int {
+	total := m.qrCodeSize() * m.qrCodeSize()
+	darkModules := 0
+
+	for _, row := range matrix.GetMatrix() {
+		for _, module := range row {
+			if !util.IsModuleLighten(module) {
+				darkModules += 1
+			}
+		}
+	}
+
+	percentage := darkModules * 100 / total
+
+	if percentage > 50 {
+		percentage = int(math.Floor(float64(percentage)/5)) * 5
+	} else {
+		percentage = int(math.Ceil(float64(percentage)/5)) * 5
+	}
+
+	return int(math.Abs(float64(percentage)-50)) * 2
+}
+
+func (m *Moduler) computeModulesLinePenalty(modules []util.Module) int {
+	count := 0
+	score := 0
+	isLighten := false
+
+	for _, module := range modules {
+		if x := util.IsModuleLighten(module); x != isLighten {
+			isLighten = x
+			count = 1
+		} else {
+			count++
+			if count == 5 {
+				score += 3
+			} else if count > 5 {
+				score += 1
+			}
+		}
+	}
+
+	return score
+}
+
+func (m *Moduler) isRulePattern(pattern, seq []util.Module) bool {
+	for i := range seq {
+		val := util.Module_DARKEN
+		if util.IsModuleLighten(seq[i]) {
+			val = util.Module_LIGHTEN
+		}
+
+		if pattern[i] != val {
+			return false
+		}
+	}
+	return true
 }
