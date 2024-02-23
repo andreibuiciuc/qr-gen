@@ -2,6 +2,7 @@ package moduler
 
 import (
 	"fmt"
+	"math"
 	"qr/qr-gen/matrix"
 	"qr/qr-gen/util"
 	"qr/qr-gen/versioner"
@@ -9,7 +10,7 @@ import (
 )
 
 type ModulerInterface interface {
-	CreateModuleMatrix(data string) *matrix.Matrix[util.Module]
+	CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module])
 }
 
 type Moduler struct {
@@ -17,26 +18,53 @@ type Moduler struct {
 	moduleMatrix *matrix.Matrix[util.Module]
 }
 
-type Coordintates struct {
+type Coordinates struct {
 	row int
 	col int
 }
 
 type Boundary struct {
-	lower Coordintates
-	upper Coordintates
+	lower Coordinates
+	upper Coordinates
 }
 
 const finderPatternSize = 7
 
 // These locations stand only for alignment patterns that do not overlap with finder patterns
 // This can be improved by checking the overlap programatically
-var allignmentPatternLocation = map[versioner.QrVersion][]Coordintates{
+var allignmentPatternLocation = map[versioner.QrVersion][]Coordinates{
 	1: {},
-	2: {Coordintates{18, 18}},
-	3: {Coordintates{22, 22}},
-	4: {Coordintates{26, 26}},
-	5: {Coordintates{30, 30}},
+	2: {Coordinates{18, 18}},
+	3: {Coordinates{22, 22}},
+	4: {Coordinates{26, 26}},
+	5: {Coordinates{30, 30}},
+}
+
+var maskFormula = map[int]func(Coordinates) bool{
+	0: func(c Coordinates) bool {
+		return (c.row+c.col)%2 == 0
+	},
+	1: func(c Coordinates) bool {
+		return c.row%2 == 0
+	},
+	2: func(c Coordinates) bool {
+		return c.col%3 == 0
+	},
+	3: func(c Coordinates) bool {
+		return (c.row+c.col)%3 == 0
+	},
+	4: func(c Coordinates) bool {
+		return (int(math.Floor(float64(c.row)/2))+int(math.Floor(float64(c.col)/3)))%2 == 0
+	},
+	5: func(c Coordinates) bool {
+		return (c.row*c.col)%2+(c.row*c.col)%3 == 0
+	},
+	6: func(c Coordinates) bool {
+		return ((c.row*c.col)%2+(c.row*c.col)%3)%2 == 0
+	},
+	7: func(c Coordinates) bool {
+		return ((c.row+c.col)%2+(c.row*c.col%3))%2 == 0
+	},
 }
 
 func NewModuler(version versioner.QrVersion) ModulerInterface {
@@ -45,7 +73,7 @@ func NewModuler(version versioner.QrVersion) ModulerInterface {
 	}
 }
 
-func (m *Moduler) CreateModuleMatrix(data string) *matrix.Matrix[util.Module] {
+func (m *Moduler) CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module]) {
 	qrCodeSize := m.qrCodeSize()
 
 	m.moduleMatrix = matrix.NewMatrix[util.Module](qrCodeSize, qrCodeSize)
@@ -60,17 +88,15 @@ func (m *Moduler) CreateModuleMatrix(data string) *matrix.Matrix[util.Module] {
 
 	m.reserveFormatArea()
 
-	m.placeDataBits(data)
-	m.moduleMatrix.PrintMatrix()
+	moduleCoords := m.placeDataBits(data)
+	matrixCandidates := m.getModuleMatrixCandidates(moduleCoords)
 
-	return m.moduleMatrix
+	return m.moduleMatrix, matrixCandidates
 }
 
 func (m *Moduler) qrCodeSize() int {
 	return (int(m.version)-1)*4 + 21
 }
-
-// MODULE PLACEMENT
 
 // Sets the top left finder pattern in the module matrix
 func (m *Moduler) setTopLeftFinderPattern() {
@@ -116,8 +142,8 @@ func (m *Moduler) setBottomLeftFinderPattern() {
 
 // Sets the alignment patterns in the module matrix
 func (m *Moduler) setAlignmentPatterns() {
-	for _, coordinates := range allignmentPatternLocation[m.version] {
-		boundary := m.alignmentPatternBoundary(coordinates)
+	for _, c := range allignmentPatternLocation[m.version] {
+		boundary := m.alignmentPatternBoundary(c)
 		m.patchPattern(boundary, util.Module_ALIGNMENT_LIGHTEN, util.Module_ALIGNMENT_DARKEN)
 	}
 }
@@ -188,8 +214,9 @@ func (m *Moduler) reserveFormatArea() {
 }
 
 // Places the encoded data bits in the module matrix
-func (m *Moduler) placeDataBits(data string) {
-	currentCellCoord := Coordintates{row: m.qrCodeSize() - 1, col: m.qrCodeSize() - 1}
+func (m *Moduler) placeDataBits(data string) []Coordinates {
+	var moduleCoords []Coordinates
+	currentCellCoord := Coordinates{row: m.qrCodeSize() - 1, col: m.qrCodeSize() - 1}
 
 	indexInBits := 0
 	indexInModules := 0
@@ -205,6 +232,7 @@ func (m *Moduler) placeDataBits(data string) {
 				module = util.Module_DARKEN
 			}
 			m.moduleMatrix.Set(currentCellCoord.row, currentCellCoord.col, util.Module(module))
+			moduleCoords = append(moduleCoords, currentCellCoord)
 			indexInBits += 1
 		}
 
@@ -228,6 +256,8 @@ func (m *Moduler) placeDataBits(data string) {
 
 		indexInModules += 1
 	}
+
+	return moduleCoords
 }
 
 // Patches a squared shape pattern of modules alternatively (finder, alignment)
@@ -256,31 +286,68 @@ func (m *Moduler) isPatternModuleLighten(i, j int, boundary Boundary) bool {
 func (m *Moduler) finderPatternBoundary(top, left bool) (*Boundary, error) {
 	if top && left {
 		return &Boundary{
-			lower: Coordintates{row: 0, col: 0},
-			upper: Coordintates{row: finderPatternSize, col: finderPatternSize},
+			lower: Coordinates{row: 0, col: 0},
+			upper: Coordinates{row: finderPatternSize, col: finderPatternSize},
 		}, nil
 	}
 
 	if top && !left {
 		return &Boundary{
-			lower: Coordintates{row: 0, col: m.qrCodeSize() - finderPatternSize},
-			upper: Coordintates{row: finderPatternSize, col: m.qrCodeSize()},
+			lower: Coordinates{row: 0, col: m.qrCodeSize() - finderPatternSize},
+			upper: Coordinates{row: finderPatternSize, col: m.qrCodeSize()},
 		}, nil
 	}
 
 	if !top && left {
 		return &Boundary{
-			lower: Coordintates{row: m.qrCodeSize() - finderPatternSize, col: 0},
-			upper: Coordintates{row: m.qrCodeSize(), col: finderPatternSize},
+			lower: Coordinates{row: m.qrCodeSize() - finderPatternSize, col: 0},
+			upper: Coordinates{row: m.qrCodeSize(), col: finderPatternSize},
 		}, nil
 	}
 
 	return nil, fmt.Errorf("invalid finder pattern location")
 }
 
-func (m *Moduler) alignmentPatternBoundary(coordinates Coordintates) Boundary {
+func (m *Moduler) alignmentPatternBoundary(c Coordinates) Boundary {
 	return Boundary{
-		lower: Coordintates{row: coordinates.row - 2, col: coordinates.col - 2},
-		upper: Coordintates{row: coordinates.row + 3, col: coordinates.col + 3},
+		lower: Coordinates{row: c.row - 2, col: c.col - 2},
+		upper: Coordinates{row: c.row + 3, col: c.col + 3},
 	}
+}
+
+// Gets the masked matrix candidates based on masking formulas
+func (m *Moduler) getModuleMatrixCandidates(moduleCoords []Coordinates) []*matrix.Matrix[util.Module] {
+	matrixCandidates := make([]*matrix.Matrix[util.Module], len(maskFormula))
+
+	for i := range maskFormula {
+		matrixCandidates[i] = m.maskModuleMatrix(moduleCoords, i)
+	}
+
+	return matrixCandidates
+}
+
+// Masks a module matrix based on the given rule
+func (m *Moduler) maskModuleMatrix(moduleCoords []Coordinates, rule int) *matrix.Matrix[util.Module] {
+	matrixCandidate := matrix.NewMatrix[util.Module](m.qrCodeSize(), m.qrCodeSize())
+	matrixCandidate.SetMatrix(m.moduleMatrix.GetMatrix())
+
+	for _, c := range moduleCoords {
+		module, _ := matrixCandidate.At(c.row, c.col)
+
+		if maskFormula[rule](c) {
+			module = m.toggleModule(c)
+		}
+
+		matrixCandidate.Set(c.row, c.col, module)
+	}
+
+	return matrixCandidate
+}
+
+// Toggles the value of a data module, necessary as the modules are expressive and ARE NOT values of 0 or 1
+func (m *Moduler) toggleModule(c Coordinates) util.Module {
+	if val, _ := m.moduleMatrix.At(c.row, c.col); val == util.Module_LIGHTEN {
+		return util.Module_DARKEN
+	}
+	return util.Module_LIGHTEN
 }

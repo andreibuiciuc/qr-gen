@@ -94,7 +94,7 @@ func (m *Matrix[T]) GetMatrix() [][]T {
 	return m.mat
 }
 
-func (m *Matrix[T]) setMatrix(mat [][]T) error {
+func (m *Matrix[T]) SetMatrix(mat [][]T) error {
 	if m.width != len(mat) {
 		return fmt.Errorf("Matrices witdth does not match")
 	}

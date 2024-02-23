@@ -11,7 +11,7 @@ func TestMatrixWidth(t *testing.T) {
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
 	mat := NewMatrix[int](3, 3)
-	mat.setMatrix(m)
+	mat.SetMatrix(m)
 
 	assert.Equal(3, mat.Width(), "Width should match")
 }
@@ -21,7 +21,7 @@ func TestMatrixHeight(t *testing.T) {
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
 	mat := NewMatrix[int](3, 3)
-	mat.setMatrix(m)
+	mat.SetMatrix(m)
 
 	assert.Equal(3, mat.Height(), "Height should match")
 }
@@ -31,7 +31,7 @@ func TestMatrixAt(t *testing.T) {
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
 	mat := NewMatrix[int](3, 3)
-	mat.setMatrix(m)
+	mat.SetMatrix(m)
 
 	tests := []struct {
 		name     string
@@ -80,7 +80,7 @@ func TestMatrixSet(t *testing.T) {
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
 	mat := NewMatrix[int](3, 3)
-	mat.setMatrix(m)
+	mat.SetMatrix(m)
 
 	tests := []struct {
 		name            string
@@ -134,7 +134,7 @@ func TestMatrixRowAt(t *testing.T) {
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
 	mat := NewMatrix[int](3, 3)
-	mat.setMatrix(m)
+	mat.SetMatrix(m)
 
 	tests := []struct {
 		name     string
@@ -180,7 +180,7 @@ func TestMatrixColAt(t *testing.T) {
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
 	mat := NewMatrix[int](3, 3)
-	mat.setMatrix(m)
+	mat.SetMatrix(m)
 
 	tests := []struct {
 		name     string

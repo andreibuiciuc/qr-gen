@@ -1,6 +1,7 @@
 package moduler
 
 import (
+	"fmt"
 	"qr/qr-gen/encoder"
 	"qr/qr-gen/img"
 	"qr/qr-gen/interleaver"
@@ -27,8 +28,13 @@ func TestModuler(t *testing.T) {
 	data := i.GetFinalMessage(encoded, version, versioner.QrEcMedium)
 
 	m := NewModuler(version)
-	matrix := m.CreateModuleMatrix(data)
+	matrix, candidates := m.CreateModuleMatrix(data)
 
 	qi := img.New()
-	qi.CreateImage("test2.png", matrix.GetMatrix())
+
+	qi.CreateImage("unmasked.png", matrix.GetMatrix())
+
+	for i, candidate := range candidates {
+		qi.CreateImage(fmt.Sprintf("candidate%d.png", i), candidate.GetMatrix())
+	}
 }
