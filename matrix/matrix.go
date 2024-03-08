@@ -44,11 +44,11 @@ func (m *Matrix[T]) Height() int {
 
 func (m *Matrix[T]) At(w, h int) (T, error) {
 	if w < 0 || w > m.width-1 {
-		return zero[T](), fmt.Errorf("Width out of range")
+		return zero[T](), fmt.Errorf("width out of range")
 	}
 
 	if h < 0 || h >= m.height {
-		return zero[T](), fmt.Errorf("Height out of range")
+		return zero[T](), fmt.Errorf("height out of range")
 	}
 
 	return m.mat[w][h], nil
@@ -56,11 +56,11 @@ func (m *Matrix[T]) At(w, h int) (T, error) {
 
 func (m *Matrix[T]) Set(w, h int, val T) (T, error) {
 	if w < 0 || w > m.width-1 {
-		return zero[T](), fmt.Errorf("Width out of range")
+		return zero[T](), fmt.Errorf("width out of range")
 	}
 
 	if h < 0 || h > m.height-1 {
-		return zero[T](), fmt.Errorf("Height out of range")
+		return zero[T](), fmt.Errorf("height out of range")
 	}
 
 	prevVal := m.mat[w][h]
@@ -71,7 +71,7 @@ func (m *Matrix[T]) Set(w, h int, val T) (T, error) {
 
 func (m *Matrix[T]) RowAt(rowIdx int) ([]T, error) {
 	if rowIdx < 0 || rowIdx > m.height-1 {
-		return nil, fmt.Errorf("Row index out of range")
+		return nil, fmt.Errorf("row index out of range")
 	}
 
 	return m.mat[rowIdx], nil
@@ -79,7 +79,7 @@ func (m *Matrix[T]) RowAt(rowIdx int) ([]T, error) {
 
 func (m *Matrix[T]) ColumnAt(colIdx int) ([]T, error) {
 	if colIdx < 0 || colIdx > m.width-1 {
-		return nil, fmt.Errorf("Column index out of range")
+		return nil, fmt.Errorf("column index out of range")
 	}
 
 	row := make([]T, m.height)
@@ -96,11 +96,11 @@ func (m *Matrix[T]) GetMatrix() [][]T {
 
 func (m *Matrix[T]) SetMatrix(mat [][]T) error {
 	if m.width != len(mat) {
-		return fmt.Errorf("Matrices witdth does not match")
+		return fmt.Errorf("matrices witdth does not match")
 	}
 
 	if m.height != len(mat[0]) {
-		return fmt.Errorf("Matrices height does not match")
+		return fmt.Errorf("matrices height does not match")
 	}
 
 	for i := 0; i < m.width; i++ {
@@ -109,6 +109,26 @@ func (m *Matrix[T]) SetMatrix(mat [][]T) error {
 		}
 	}
 
+	return nil
+}
+
+func (m *Matrix[T]) Expand(n int) error {
+	if n < 0 {
+		return fmt.Errorf("invalid expansion unit")
+	}
+
+	expandedMat := make([][]T, m.width+2*n)
+	for i := range expandedMat {
+		expandedMat[i] = make([]T, m.height+2*n)
+	}
+
+	for i := 0; i < m.width; i++ {
+		for j := 0; j < m.height; j++ {
+			expandedMat[i+n][j+n] = m.mat[i][j]
+		}
+	}
+
+	m.mat = expandedMat
 	return nil
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 type ModulerInterface interface {
-	CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module], Penalty)
+	CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], Penalty)
 }
 
 type Moduler struct {
@@ -86,15 +86,15 @@ func New(version versioner.QrVersion, ecLevel versioner.QrEcLevel) ModulerInterf
 	}
 }
 
-// TODO: Refactor this after defining better test cases
-func (m *Moduler) CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], []*matrix.Matrix[util.Module], Penalty) {
+func (m *Moduler) CreateModuleMatrix(data string) (*matrix.Matrix[util.Module], Penalty) {
 	m.prepareModuleMatrix(data)
 
 	moduleCoords := m.placeDataBits(data)
 	candidates := m.getModuleMatrixCandidates(moduleCoords)
 	matrix, penalty := m.getBestMaskedMatrix(candidates)
+	matrix.Expand(4)
 
-	return matrix, candidates, penalty
+	return matrix, penalty
 }
 
 func (m *Moduler) prepareModuleMatrix(data string) {
@@ -415,10 +415,13 @@ func (m *Moduler) setFormatInformationModules(matrix *matrix.Matrix[util.Module]
 
 func (m *Moduler) getBestMaskedMatrix(candidates []*matrix.Matrix[util.Module]) (*matrix.Matrix[util.Module], Penalty) {
 	penalty := m.evaluateMatrixCandidate(candidates[0])
+	scores := make([]int, len(candidates))
+	scores[0] = penalty.total
 	matrix := candidates[0]
 
 	for i := 1; i < len(candidates); i++ {
 		currentPenalty := m.evaluateMatrixCandidate(candidates[i])
+		scores[i] = currentPenalty.total
 		if currentPenalty.total < penalty.total {
 			penalty = currentPenalty
 			matrix = candidates[i]
