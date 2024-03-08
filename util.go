@@ -1,4 +1,4 @@
-package util
+package qr
 
 import (
 	"math"
@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-type Module int
-type QrErrorCorrectionInfo struct {
+type module int
+type qrEcInfo struct {
 	TotalDataCodewords          int
 	ECCodewordsPerBlock         int
 	NumBlocksGroup1             int
@@ -16,12 +16,26 @@ type QrErrorCorrectionInfo struct {
 	DataCodewordsInGroup2Block  int
 }
 
-const QrCodewordSize = 8
+const codewordSize = 8
+const (
+	module_LIGHTEN module = iota
+	module_DARKEN
+	module_FINDER_LIGHTEN
+	module_FINDER_DARKEN
+	module_SEPARATOR
+	module_ALIGNMENT_LIGHTEN
+	module_ALIGNMENT_DARKEN
+	module_TIMING_LIGHTEN
+	module_TIMING_DARKEN
+	module_DARK
+	module_RESERVED
+	module_EMPTY
+)
 
 var logTable = make([]int, 256)
 var antilogTable = make([]int, 256)
 
-var QrEcInfo = map[string]QrErrorCorrectionInfo{
+var ecInfo = map[string]qrEcInfo{
 	"1-L": {19, 7, 1, 19, 0, 0},
 	"1-M": {16, 10, 1, 16, 0, 0},
 	"1-Q": {13, 13, 1, 13, 0, 0},
@@ -44,22 +58,7 @@ var QrEcInfo = map[string]QrErrorCorrectionInfo{
 	"5-H": {46, 22, 2, 11, 2, 12},
 }
 
-const (
-	Module_LIGHTEN           Module = 0
-	Module_DARKEN            Module = 1
-	Module_FINDER_LIGHTEN    Module = 2
-	Module_FINDER_DARKEN     Module = 3
-	Module_SEPARATOR         Module = 4
-	Module_ALIGNMENT_LIGHTEN Module = 5
-	Module_ALIGNMENT_DARKEN  Module = 6
-	Module_TIMING_LIGHTEN    Module = 7
-	Module_TIMING_DARKEN     Module = 8
-	Module_DARK              Module = 9
-	Module_RESERVED          Module = 10
-	Module_EMPTY             Module = 11
-)
-
-var FormatInformationStrings = map[rune]map[int]string{
+var fmtInfoCodes = map[rune]map[int]string{
 	'L': {
 		0: "111011111000100",
 		1: "111001011110011",
@@ -102,26 +101,26 @@ var FormatInformationStrings = map[rune]map[int]string{
 	},
 }
 
-func IsModuleLighten(module Module) bool {
-	return module == Module_LIGHTEN || module == Module_FINDER_LIGHTEN ||
-		module == Module_ALIGNMENT_LIGHTEN || module == Module_TIMING_LIGHTEN ||
-		module == Module_SEPARATOR
+func isModuleLighten(module module) bool {
+	return module == module_LIGHTEN || module == module_FINDER_LIGHTEN ||
+		module == module_ALIGNMENT_LIGHTEN || module == module_TIMING_LIGHTEN ||
+		module == module_SEPARATOR
 }
 
-func IsModuleSkippedForFormat(module Module) bool {
-	return module == Module_TIMING_LIGHTEN || module == Module_TIMING_DARKEN || module == Module_DARK
+func isModuleSkippedForFormat(module module) bool {
+	return module == module_TIMING_LIGHTEN || module == module_TIMING_DARKEN || module == module_DARK
 }
 
-func GetDataModule(value int) Module {
+func getDataModule(value int) module {
 	if value == 0 {
-		return Module_LIGHTEN
+		return module_LIGHTEN
 	}
-	return Module_DARKEN
+	return module_DARKEN
 }
 
-// ComputeAlphaToPower computes the power of a to p
+// computeAlphaToPower computes the power of a to p
 // in the Galois field of order 256.
-func ComputeAlphaToPower(a, p int) int {
+func computeAlphaToPower(a, p int) int {
 	result := 1
 
 	for i := 0; i < p; i++ {
@@ -137,19 +136,19 @@ func ComputeAlphaToPower(a, p int) int {
 	return result
 }
 
-// ComputeLogAntilogTables computes the Log and Antilog tables
+// computeLogAntilogTables computes the Log and Antilog tables
 // in the Galois field of order 256.
-func ComputeLogAntilogTables() {
+func computeLogAntilogTables() {
 	for i := 0; i < 256; i++ {
-		logTable[i] = ComputeAlphaToPower(2, i)
+		logTable[i] = computeAlphaToPower(2, i)
 		antilogTable[logTable[i]] = i
 	}
 	antilogTable[1] = 0
 }
 
-// ConvertValueToExponent converts the value n into the exponent
+// convertValueToExponent converts the value n into the exponent
 // from the Antilog table in the Galois field of order 256.
-func ConvertValueToExponent(n int) int {
+func convertValueToExponent(n int) int {
 	if n < 0 || n > len(antilogTable)-1 {
 		return 0
 	}
@@ -157,9 +156,9 @@ func ConvertValueToExponent(n int) int {
 	return antilogTable[n]
 }
 
-// ConvertExponentToValue converts the exponent n into the base
+// convertExponentToValue converts the exponent n into the base
 // from the Log table in the Galois field of order 256.
-func ConvertExponentToValue(n int) int {
+func convertExponentToValue(n int) int {
 	if n < 0 || n > len(logTable)-1 {
 		return 0
 	}
@@ -167,56 +166,56 @@ func ConvertExponentToValue(n int) int {
 	return logTable[n]
 }
 
-// ConvertIntListToBin converts a list of integers into a list
+// convertIntListToBin converts a list of integers into a list
 // of 8 bit binary strings.
-func ConvertIntListToBin(list []int) []string {
+func convertIntListToBin(list []int) []string {
 	result := make([]string, len(list))
 
 	for i, elem := range list {
 		bin := strconv.FormatInt(int64(elem), 2)
-		result[i] = PadLeft(bin, "0", 8)
+		result[i] = padLeft(bin, "0", 8)
 	}
 
 	return result
 }
 
-// ConvertIntListToCodewords converts a list of integers into
+// convertIntListToCodewords converts a list of integers into
 // a binary string of codewords.
-func ConvertIntListToCodewords(list []int) string {
+func convertIntListToCodewords(list []int) string {
 	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
 		list[i], list[j] = list[j], list[i]
 	}
-	return strings.Join(ConvertIntListToBin(list), "")
+	return strings.Join(convertIntListToBin(list), "")
 }
 
-// GetClosestMultiple computes the closest to n mutiple of m.
-func GetClosestMultiple(n int, m int) int {
+// getClosestMultiple computes the closest to n mutiple of m.
+func getClosestMultiple(n int, m int) int {
 	multiple := int(math.Round(float64(n) / float64(m)))
 	return multiple * m
 }
 
-// Max computes the maximum value between two integers.
-func Max(a, b int) int {
+// max computes the maximum value between two integers.
+func max(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
 
-// PadLeft applies a padding to the left with the character c
+// padLeft applies a padding to the left with the character c
 // such that the padded string has length n.
-func PadLeft(s string, c string, n int) string {
+func padLeft(s string, c string, n int) string {
 	return strings.Repeat(c, n-len(s)) + s
 }
 
-// PadRight applies a padding to the right with the character c
+// padRight applies a padding to the right with the character c
 // such that the padded string has length n.
-func PadRight(s string, c string, n int) string {
+func padRight(s string, c string, n int) string {
 	return s + strings.Repeat(c, n-len(s))
 }
 
-// SplitInGroups splits a string into groups of at least n characters.
-func SplitInGroups(s string, n int) []string {
+// splitInGroups splits a string into groups of at least n characters.
+func splitInGroups(s string, n int) []string {
 	if s == "" {
 		return nil
 	}
@@ -238,6 +237,6 @@ func SplitInGroups(s string, n int) []string {
 	return result
 }
 
-func GetECMappingKey(version int, lvl string) string {
-	return strconv.Itoa(int(version)) + "-" + string(lvl)
+func getECMappingKey(v int, lvl string) string {
+	return strconv.Itoa(v) + "-" + lvl
 }

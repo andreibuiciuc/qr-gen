@@ -1,21 +1,21 @@
-package matrix
+package qr
 
 import "fmt"
 
-type Matrix[T any] struct {
+type matrix[T any] struct {
 	mat    [][]T
 	width  int
 	height int
 }
 
-func NewMatrix[T any](width, height int) *Matrix[T] {
+func newMatrix[T any](width, height int) *matrix[T] {
 	mat := make([][]T, width)
 
 	for i := 0; i < width; i++ {
 		mat[i] = make([]T, height)
 	}
 
-	return &Matrix[T]{
+	return &matrix[T]{
 		mat:    mat,
 		width:  width,
 		height: height,
@@ -26,7 +26,7 @@ func zero[T any]() T {
 	return *new(T)
 }
 
-func (m *Matrix[T]) Init(val T) {
+func (m *matrix[T]) Init(val T) {
 	for i := 0; i < m.width; i++ {
 		for j := 0; j < m.height; j++ {
 			m.mat[i][j] = val
@@ -34,15 +34,15 @@ func (m *Matrix[T]) Init(val T) {
 	}
 }
 
-func (m *Matrix[T]) Width() int {
+func (m *matrix[T]) Width() int {
 	return m.width
 }
 
-func (m *Matrix[T]) Height() int {
+func (m *matrix[T]) Height() int {
 	return m.height
 }
 
-func (m *Matrix[T]) At(w, h int) (T, error) {
+func (m *matrix[T]) At(w, h int) (T, error) {
 	if w < 0 || w > m.width-1 {
 		return zero[T](), fmt.Errorf("width out of range")
 	}
@@ -54,7 +54,7 @@ func (m *Matrix[T]) At(w, h int) (T, error) {
 	return m.mat[w][h], nil
 }
 
-func (m *Matrix[T]) Set(w, h int, val T) (T, error) {
+func (m *matrix[T]) Set(w, h int, val T) (T, error) {
 	if w < 0 || w > m.width-1 {
 		return zero[T](), fmt.Errorf("width out of range")
 	}
@@ -69,7 +69,7 @@ func (m *Matrix[T]) Set(w, h int, val T) (T, error) {
 	return prevVal, nil
 }
 
-func (m *Matrix[T]) RowAt(rowIdx int) ([]T, error) {
+func (m *matrix[T]) RowAt(rowIdx int) ([]T, error) {
 	if rowIdx < 0 || rowIdx > m.height-1 {
 		return nil, fmt.Errorf("row index out of range")
 	}
@@ -77,7 +77,7 @@ func (m *Matrix[T]) RowAt(rowIdx int) ([]T, error) {
 	return m.mat[rowIdx], nil
 }
 
-func (m *Matrix[T]) ColumnAt(colIdx int) ([]T, error) {
+func (m *matrix[T]) ColumnAt(colIdx int) ([]T, error) {
 	if colIdx < 0 || colIdx > m.width-1 {
 		return nil, fmt.Errorf("column index out of range")
 	}
@@ -90,11 +90,11 @@ func (m *Matrix[T]) ColumnAt(colIdx int) ([]T, error) {
 	return row, nil
 }
 
-func (m *Matrix[T]) GetMatrix() [][]T {
+func (m *matrix[T]) GetMatrix() [][]T {
 	return m.mat
 }
 
-func (m *Matrix[T]) SetMatrix(mat [][]T) error {
+func (m *matrix[T]) SetMatrix(mat [][]T) error {
 	if m.width != len(mat) {
 		return fmt.Errorf("matrices witdth does not match")
 	}
@@ -112,7 +112,7 @@ func (m *Matrix[T]) SetMatrix(mat [][]T) error {
 	return nil
 }
 
-func (m *Matrix[T]) Expand(n int) error {
+func (m *matrix[T]) Expand(n int) error {
 	if n < 0 {
 		return fmt.Errorf("invalid expansion unit")
 	}
@@ -132,7 +132,7 @@ func (m *Matrix[T]) Expand(n int) error {
 	return nil
 }
 
-func (m *Matrix[T]) PrintMatrix() {
+func (m *matrix[T]) PrintMatrix() {
 	for _, row := range m.mat {
 		for _, val := range row {
 			fmt.Printf("%v ", val)

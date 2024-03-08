@@ -1,4 +1,4 @@
-module qr/qr-gen
+module qr
 
 go 1.20
 
