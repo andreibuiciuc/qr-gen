@@ -7,8 +7,8 @@ import (
 )
 
 type moduler struct {
-	int          int
-	rune         rune
+	version      int
+	lvl          rune
 	moduleMatrix *matrix[module]
 }
 
@@ -70,10 +70,10 @@ var maskFormula = map[int]func(coordinates) bool{
 	},
 }
 
-func newModuler(int int, rune rune) *moduler {
+func newModuler(v int, lvl rune) *moduler {
 	return &moduler{
-		int:  int,
-		rune: rune,
+		version: v,
+		lvl:     lvl,
 	}
 }
 
@@ -103,7 +103,7 @@ func (m *moduler) prepareModuleMatrix(data string) {
 }
 
 func (m *moduler) qrCodeSize() int {
-	return (int(m.int)-1)*4 + 21
+	return (int(m.version)-1)*4 + 21
 }
 
 // Sets the top left finder pattern in the module matrix
@@ -150,7 +150,7 @@ func (m *moduler) setBottomLeftFinderPattern() {
 
 // Sets the alignment patterns in the module matrix
 func (m *moduler) setAlignmentPatterns() {
-	for _, c := range allignmentPatternLocation[m.int] {
+	for _, c := range allignmentPatternLocation[m.version] {
 		boundary := m.alignmentPatternBoundary(c)
 		m.patchPattern(boundary, module_ALIGNMENT_LIGHTEN, module_ALIGNMENT_DARKEN)
 	}
@@ -185,7 +185,7 @@ func (m *moduler) setTimingPatterns() {
 
 // Sets the dark module in the module matrix
 func (m *moduler) setDarkModule() {
-	m.moduleMatrix.Set(4*int(m.int)+9, 8, module_DARK)
+	m.moduleMatrix.Set(4*int(m.version)+9, 8, module_DARK)
 }
 
 // Sets the reserved format information area in the module matrix
@@ -363,7 +363,7 @@ func (m *moduler) toggleModule(c coordinates) module {
 
 func (m *moduler) setFormatInformationModules(matrix *matrix[module], rule int) {
 	boundary, _ := m.finderPatternBoundary(true, true)
-	format := fmtInfoCodes[rune(m.rune)][rule]
+	format := fmtInfoCodes[rune(m.lvl)][rule]
 	format += format
 	index := 0
 

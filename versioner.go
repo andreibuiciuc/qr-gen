@@ -104,11 +104,11 @@ func (v *versioner) getMode(s string) (string, error) {
 	return string(""), fmt.Errorf("invalid input pattern")
 }
 
-func (v *versioner) getVersion(s string, string string, lvl rune) (int, error) {
+func (v *versioner) getVersion(s string, mode string, lvl rune) (int, error) {
 	ver := 1
 
 	for ver <= len(qrCapacities) {
-		if len(s) <= qrCapacities[int(ver)][lvl][qrModeIndices[string]] {
+		if len(s) <= qrCapacities[int(ver)][lvl][qrModeIndices[mode]] {
 			return int(ver), nil
 		}
 		ver += 1
@@ -117,11 +117,11 @@ func (v *versioner) getVersion(s string, string string, lvl rune) (int, error) {
 	return int(-1), fmt.Errorf("cannot compute qr int")
 }
 
-func (v *versioner) getModeIndicator(string string) string {
-	return qrModeIndicators[string]
+func (v *versioner) getModeIndicator(mode string) string {
+	return qrModeIndicators[mode]
 }
 
-func (v *versioner) getCountIndicator(s string, int int, string string) (string, error) {
+func (v *versioner) getCountIndicator(s string, vrs int, string string) (string, error) {
 	sLenBin := strconv.FormatInt(int64(len(s)), 2)
 	return padLeft(sLenBin, "0", qrCountIndLengths[string]), nil
 }

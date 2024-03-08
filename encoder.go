@@ -215,8 +215,8 @@ func (e *encoder) encodeInput(s string, m string) string {
 	}
 }
 
-func (e *encoder) augmentEncodedInput(s string, int int, lvl rune) string {
-	requiredBitsCount := e.getNumberOfRequiredBits(int, lvl)
+func (e *encoder) augmentEncodedInput(s string, v int, lvl rune) string {
+	requiredBitsCount := e.getNumberOfRequiredBits(v, lvl)
 
 	s = e.augmentWithTerminatorBits(s, requiredBitsCount)
 	remainingBitsCount := requiredBitsCount - len(s)

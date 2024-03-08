@@ -55,27 +55,27 @@ func newInterleaver() *interleaver {
 	return &interleaver{}
 }
 
-func (i *interleaver) getFinalMessage(inputCodewords string, int int, lvl rune) string {
+func (i *interleaver) getFinalMessage(inputCodewords string, v int, lvl rune) string {
 	var codewords string
 	ec := NewErrorCorrector()
 
-	if i.isInterleavingNecessary(int, lvl) {
-		codewords = i.handleInterleaveProcess(int, lvl, inputCodewords)
+	if i.isInterleavingNecessary(v, lvl) {
+		codewords = i.handleInterleaveProcess(v, lvl, inputCodewords)
 	} else {
-		errCorrCodewords := ec.getErrorCorrectionCodewords(inputCodewords, int, lvl)
+		errCorrCodewords := ec.getErrorCorrectionCodewords(inputCodewords, v, lvl)
 		codewords = inputCodewords + convertIntListToCodewords(errCorrCodewords)
 	}
 
-	return padRight(codewords, "0", len(codewords)+remainderBits[int])
+	return padRight(codewords, "0", len(codewords)+remainderBits[v])
 }
 
 func (i *interleaver) isInterleavingNecessary(v int, lvl rune) bool {
 	return ecInfo[getECMappingKey(v, string(lvl))].NumBlocksGroup2 != 0
 }
 
-func (i *interleaver) handleInterleaveProcess(int int, lvl rune, codewords string) string {
-	interleavedDataCodewords, dataBlocks := i.interleaveDataCodewords(int, lvl, codewords)
-	interleavedECCodewords := i.interleaveErrCorrCodewords(int, lvl, dataBlocks)
+func (i *interleaver) handleInterleaveProcess(v int, lvl rune, codewords string) string {
+	interleavedDataCodewords, dataBlocks := i.interleaveDataCodewords(v, lvl, codewords)
+	interleavedECCodewords := i.interleaveErrCorrCodewords(v, lvl, dataBlocks)
 
 	interleavedDataBinary := convertIntListToBin(interleavedDataCodewords)
 	interleavedECBinary := convertIntListToBin(interleavedECCodewords)
