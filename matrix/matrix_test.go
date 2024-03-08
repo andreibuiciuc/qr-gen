@@ -13,7 +13,7 @@ func TestMatrixWidth(t *testing.T) {
 	mat := NewMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
-	assert.Equal(3, mat.Width(), "Width should match")
+	assert.Equal(3, mat.Width(), "width should match")
 }
 
 func TestMatrixHeight(t *testing.T) {
@@ -23,7 +23,7 @@ func TestMatrixHeight(t *testing.T) {
 	mat := NewMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
-	assert.Equal(3, mat.Height(), "Height should match")
+	assert.Equal(3, mat.Height(), "height should match")
 }
 
 func TestMatrixAt(t *testing.T) {
@@ -51,14 +51,14 @@ func TestMatrixAt(t *testing.T) {
 			w:        3,
 			h:        1,
 			expected: 0,
-			err:      "Width out of range",
+			err:      "width out of range",
 		},
 		{
 			name:     "HeightOutOfRange",
 			w:        1,
 			h:        3,
 			expected: 0,
-			err:      "Height out of range",
+			err:      "height out of range",
 		},
 	}
 
@@ -102,7 +102,7 @@ func TestMatrixSet(t *testing.T) {
 			h:               1,
 			val:             10,
 			expectedPrevVal: 0,
-			err:             "Width out of range",
+			err:             "width out of range",
 		},
 		{
 			name:            "HeightOutOfRange",
@@ -110,7 +110,7 @@ func TestMatrixSet(t *testing.T) {
 			h:               3,
 			val:             10,
 			expectedPrevVal: 0,
-			err:             "Height out of range",
+			err:             "height out of range",
 		},
 	}
 
@@ -152,13 +152,13 @@ func TestMatrixRowAt(t *testing.T) {
 			name:     "RowOutOfRange",
 			rowIdx:   3,
 			expected: nil,
-			err:      "Row index out of range",
+			err:      "row index out of range",
 		},
 		{
 			name:     "NegativeRowOutOfRange",
 			rowIdx:   -1,
 			expected: nil,
-			err:      "Row index out of range",
+			err:      "row index out of range",
 		},
 	}
 
@@ -167,9 +167,9 @@ func TestMatrixRowAt(t *testing.T) {
 			actual, err := mat.RowAt(test.rowIdx)
 
 			if err != nil {
-				assert.Equal(test.err, err.Error(), "Error messages should match")
+				assert.Equal(test.err, err.Error(), "error messages should match")
 			} else {
-				assert.Equal(test.expected, actual, "Rows should match")
+				assert.Equal(test.expected, actual, "rows should match")
 			}
 		})
 	}
@@ -198,13 +198,13 @@ func TestMatrixColAt(t *testing.T) {
 			name:     "ColumnOutOgRange",
 			colIdx:   3,
 			expected: nil,
-			err:      "Column index out of range",
+			err:      "column index out of range",
 		},
 		{
 			name:     "NegativeColumn",
 			colIdx:   -1,
 			expected: nil,
-			err:      "Column index out of range",
+			err:      "column index out of range",
 		},
 	}
 
@@ -213,9 +213,9 @@ func TestMatrixColAt(t *testing.T) {
 			actual, err := mat.ColumnAt(test.colIdx)
 
 			if err != nil {
-				assert.Equal(test.err, err.Error(), "Error messages should match")
+				assert.Equal(test.err, err.Error(), "error messages should match")
 			} else {
-				assert.Equal(test.expected, actual, "Columns should match")
+				assert.Equal(test.expected, actual, "columns should match")
 			}
 		})
 	}

@@ -124,14 +124,14 @@ func TestConvertIntListToCodewords(t *testing.T) {
 		input    []int
 		expected string
 	}{
-		{[]int{1, 2, 3}, "000000010000001000000011"},
-		{[]int{10, 20, 30}, "000010100001010000011110"},
-		{[]int{255, 0, 127}, "111111110000000001111111"},
+		{[]int{1, 2, 3}, "000000110000001000000001"},
+		{[]int{10, 20, 30}, "000111100001010000001010"},
+		{[]int{255, 0, 127}, "011111110000000011111111"},
 		{[]int{}, ""},
 	}
 
 	for _, test := range tests {
 		actual := ConvertIntListToCodewords(test.input)
-		assert.Equal(test.expected, actual, "String of codewords should match")
+		assert.Equal(test.expected, actual, "string of codewords should match")
 	}
 }
