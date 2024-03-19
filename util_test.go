@@ -1,4 +1,4 @@
-package util
+package qr
 
 import (
 	"testing"
@@ -24,7 +24,7 @@ func TestPadLeft(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := PadLeft(test.input, test.char, test.len)
+		actual := padLeft(test.input, test.char, test.len)
 		assert.Equal(test.expected, actual, "Padded values should match")
 	}
 }
@@ -47,7 +47,7 @@ func TestPadRight(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := PadRight(test.input, test.char, test.len)
+		actual := padRight(test.input, test.char, test.len)
 		assert.Equal(test.expected, actual, "Padded values should match")
 	}
 }
@@ -71,7 +71,7 @@ func TestClosestMultiple(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := GetClosestMultiple(test.input, test.multipleOf)
+		actual := getClosestMultiple(test.input, test.multipleOf)
 		assert.Equal(test.expected, actual, "Multiples should match")
 	}
 }
@@ -93,7 +93,7 @@ func TestSplitInGroups(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := SplitInGroups(test.input, test.n)
+		actual := splitInGroups(test.input, test.n)
 		assert.Equal(test.expected, actual, "Array of groups should match")
 	}
 }
@@ -112,7 +112,7 @@ func TestConvertIntListToBin(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := ConvertIntListToBin(test.input)
+		actual := convertIntListToBin(test.input)
 		assert.Equal(test.expected, actual, "Arrays of 8 bit binary representation should match")
 	}
 }
@@ -131,7 +131,7 @@ func TestConvertIntListToCodewords(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := ConvertIntListToCodewords(test.input)
+		actual := convertIntListToCodewords(test.input)
 		assert.Equal(test.expected, actual, "string of codewords should match")
 	}
 }

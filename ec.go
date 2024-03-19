@@ -1,28 +1,21 @@
-package ec
+package qr
 
 import (
-	"qr/qr-gen/util"
-	"qr/qr-gen/versioner"
 	"strconv"
 )
 
-type ErrorCorrector interface {
-	GetMessagePolynomial(encoded string) QrPolynomial
-	GetGeneratorPolynomial(version versioner.QrVersion, lvl versioner.QrEcLevel) QrPolynomial
-	GetErrorCorrectionCodewords(encoded string, version versioner.QrVersion, lvl versioner.QrEcLevel) QrPolynomial
-}
+const qrGaloisOrder = 256
 
-type QrErrorCorrector struct{}
-
+type errorCorrector struct{}
 type QrPolynomial []int
 
-func New() ErrorCorrector {
-	util.ComputeLogAntilogTables()
-	return &QrErrorCorrector{}
+func NewErrorCorrector() *errorCorrector {
+	computeLogAntilogTables()
+	return &errorCorrector{}
 }
 
-func (ec *QrErrorCorrector) GetMessagePolynomial(encoded string) QrPolynomial {
-	codewords := util.SplitInGroups(encoded, util.QrCodewordSize)
+func (ec *errorCorrector) getMessagePolynomial(encoded string) QrPolynomial {
+	codewords := splitInGroups(encoded, codewordSize)
 	coefficients := make(QrPolynomial, len(codewords))
 
 	for index, codeword := range codewords {
@@ -33,8 +26,8 @@ func (ec *QrErrorCorrector) GetMessagePolynomial(encoded string) QrPolynomial {
 	return coefficients
 }
 
-func (ec *QrErrorCorrector) GetGeneratorPolynomial(version versioner.QrVersion, lvl versioner.QrEcLevel) QrPolynomial {
-	degree := util.QrEcInfo[util.GetECMappingKey(int(version), string(lvl))].ECCodewordsPerBlock
+func (ec *errorCorrector) getGeneratorPolynomial(v int, lvl rune) QrPolynomial {
+	degree := ecInfo[getECMappingKey(v, string(lvl))].ECCodewordsPerBlock
 	coefficients := make(QrPolynomial, 1)
 
 	for i := 1; i <= degree; i++ {
@@ -44,16 +37,16 @@ func (ec *QrErrorCorrector) GetGeneratorPolynomial(version versioner.QrVersion, 
 	}
 
 	for i := 0; i < len(coefficients); i++ {
-		coefficients[i] = util.ConvertExponentToValue(coefficients[i])
+		coefficients[i] = convertExponentToValue(coefficients[i])
 	}
 
 	return coefficients
 }
 
-func (ec *QrErrorCorrector) GetErrorCorrectionCodewords(encoded string, version versioner.QrVersion, lvl versioner.QrEcLevel) QrPolynomial {
-	messagePolynomial := ec.GetMessagePolynomial(encoded)
-	generatorPolynomial := ec.GetGeneratorPolynomial(version, lvl)
-	numErrCorrCodewords := util.QrEcInfo[util.GetECMappingKey(int(version), string(lvl))].ECCodewordsPerBlock
+func (ec *errorCorrector) getErrorCorrectionCodewords(encoded string, v int, lvl rune) QrPolynomial {
+	messagePolynomial := ec.getMessagePolynomial(encoded)
+	generatorPolynomial := ec.getGeneratorPolynomial(v, lvl)
+	numErrCorrCodewords := ecInfo[getECMappingKey(v, string(lvl))].ECCodewordsPerBlock
 
 	divisionSteps := len(messagePolynomial)
 	messagePolynomial = ec.expandPolynomial(messagePolynomial, numErrCorrCodewords)
@@ -63,7 +56,7 @@ func (ec *QrErrorCorrector) GetErrorCorrectionCodewords(encoded string, version 
 	return errCorrCodewords[0:numErrCorrCodewords]
 }
 
-func (ec *QrErrorCorrector) multiplyPolynomials(firstPoly, secondPoly QrPolynomial) QrPolynomial {
+func (ec *errorCorrector) multiplyPolynomials(firstPoly, secondPoly QrPolynomial) QrPolynomial {
 	degreeFirstPoly, degreeSecondPoly := len(firstPoly)-1, len(secondPoly)-1
 	result := ec.initializeResultAsExponents(degreeFirstPoly + degreeSecondPoly)
 
@@ -75,10 +68,10 @@ func (ec *QrErrorCorrector) multiplyPolynomials(firstPoly, secondPoly QrPolynomi
 				exponent = exponent % (qrGaloisOrder - 1)
 			}
 
-			currValue := util.ConvertExponentToValue(exponent)
+			currValue := convertExponentToValue(exponent)
 			prevValue := ec.getValueFromResultExponents(result, i+j)
 
-			exponent = util.ConvertValueToExponent(currValue ^ prevValue)
+			exponent = convertValueToExponent(currValue ^ prevValue)
 			result[i+j] = exponent
 		}
 	}
@@ -86,9 +79,8 @@ func (ec *QrErrorCorrector) multiplyPolynomials(firstPoly, secondPoly QrPolynomi
 	return result
 }
 
-func (ec *QrErrorCorrector) dividePolynomials(divident, divisor QrPolynomial, steps, remainderLen int) QrPolynomial {
-	remainder := make(QrPolynomial, remainderLen)
-
+func (ec *errorCorrector) dividePolynomials(divident, divisor QrPolynomial, steps, remainderLen int) QrPolynomial {
+	var remainder QrPolynomial
 	var currentDivisor QrPolynomial
 	copy(currentDivisor, divisor)
 
@@ -106,7 +98,7 @@ func (ec *QrErrorCorrector) dividePolynomials(divident, divisor QrPolynomial, st
 	return divident
 }
 
-func (e *QrErrorCorrector) xorPolynomials(firstPolynomial, secondPolynomial QrPolynomial, leadTermIndex int) QrPolynomial {
+func (e *errorCorrector) xorPolynomials(firstPolynomial, secondPolynomial QrPolynomial, leadTermIndex int) QrPolynomial {
 	result := make(QrPolynomial, len(secondPolynomial))
 
 	for i := len(secondPolynomial) - 1; i >= 0; i-- {
@@ -118,8 +110,8 @@ func (e *QrErrorCorrector) xorPolynomials(firstPolynomial, secondPolynomial QrPo
 	return result
 }
 
-func (e *QrErrorCorrector) multiplyPolynomialByScalar(polynomial QrPolynomial, scalar, remainderLen int) QrPolynomial {
-	scalarAlphaValue := util.ConvertValueToExponent(scalar)
+func (e *errorCorrector) multiplyPolynomialByScalar(polynomial QrPolynomial, scalar, remainderLen int) QrPolynomial {
+	scalarAlphaValue := convertValueToExponent(scalar)
 
 	var termAlphaValue int
 	result := make(QrPolynomial, len(polynomial))
@@ -128,7 +120,7 @@ func (e *QrErrorCorrector) multiplyPolynomialByScalar(polynomial QrPolynomial, s
 	isLeadTermFound := false
 
 	for i := len(polynomial) - 1; i >= 0; i-- {
-		termAlphaValue = util.ConvertValueToExponent(polynomial[i])
+		termAlphaValue = convertValueToExponent(polynomial[i])
 
 		if termAlphaValue == 0 {
 			isLeadTermFound = true
@@ -136,7 +128,7 @@ func (e *QrErrorCorrector) multiplyPolynomialByScalar(polynomial QrPolynomial, s
 		}
 
 		if isLeadTermFound && currIndex < remainderLen {
-			result[i] = util.ConvertExponentToValue((termAlphaValue + scalarAlphaValue) % (qrGaloisOrder - 1))
+			result[i] = convertExponentToValue((termAlphaValue + scalarAlphaValue) % (qrGaloisOrder - 1))
 			currIndex++
 		}
 	}
@@ -144,7 +136,7 @@ func (e *QrErrorCorrector) multiplyPolynomialByScalar(polynomial QrPolynomial, s
 	return result
 }
 
-func (e *QrErrorCorrector) getLeadingTerm(polynomial QrPolynomial) (int, int) {
+func (e *errorCorrector) getLeadingTerm(polynomial QrPolynomial) (int, int) {
 	for i := len(polynomial) - 1; i >= 0; i-- {
 		if polynomial[i] != 0 {
 			return polynomial[i], i
@@ -153,17 +145,17 @@ func (e *QrErrorCorrector) getLeadingTerm(polynomial QrPolynomial) (int, int) {
 	return -1, -1
 }
 
-func (ec *QrErrorCorrector) expandPolynomial(polynomial QrPolynomial, n int) QrPolynomial {
+func (ec *errorCorrector) expandPolynomial(polynomial QrPolynomial, n int) QrPolynomial {
 	expandedPolynomial := make(QrPolynomial, len(polynomial)+n)
 	copy(expandedPolynomial[n:], polynomial)
 	return expandedPolynomial
 }
 
-func (e *QrErrorCorrector) shiftPolynomial(polynomial QrPolynomial, unit int) QrPolynomial {
+func (e *errorCorrector) shiftPolynomial(polynomial QrPolynomial, unit int) QrPolynomial {
 	return append(polynomial[unit:], 0)
 }
 
-func (ec *QrErrorCorrector) initializeResultAsExponents(degree int) QrPolynomial {
+func (ec *errorCorrector) initializeResultAsExponents(degree int) QrPolynomial {
 	exponents := make([]int, degree+1)
 
 	for i := 0; i < degree; i++ {
@@ -173,12 +165,9 @@ func (ec *QrErrorCorrector) initializeResultAsExponents(degree int) QrPolynomial
 	return exponents
 }
 
-func (e *QrErrorCorrector) getValueFromResultExponents(result QrPolynomial, index int) int {
+func (e *errorCorrector) getValueFromResultExponents(result QrPolynomial, index int) int {
 	if index < 0 || index > len(result)-1 || result[index] == -1 {
 		return 0
 	}
-	return util.ConvertExponentToValue(result[index])
+	return convertExponentToValue(result[index])
 }
-
-const qrGaloisOrder = 256
-const qrGaloisModTerm = 285

@@ -1,4 +1,4 @@
-package matrix
+package qr
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ func TestMatrixWidth(t *testing.T) {
 	assert := assert.New(t)
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
-	mat := NewMatrix[int](3, 3)
+	mat := newMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
 	assert.Equal(3, mat.Width(), "width should match")
@@ -20,7 +20,7 @@ func TestMatrixHeight(t *testing.T) {
 	assert := assert.New(t)
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
-	mat := NewMatrix[int](3, 3)
+	mat := newMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
 	assert.Equal(3, mat.Height(), "height should match")
@@ -30,7 +30,7 @@ func TestMatrixAt(t *testing.T) {
 	assert := assert.New(t)
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
-	mat := NewMatrix[int](3, 3)
+	mat := newMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
 	tests := []struct {
@@ -79,7 +79,7 @@ func TestMatrixSet(t *testing.T) {
 	assert := assert.New(t)
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
-	mat := NewMatrix[int](3, 3)
+	mat := newMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
 	tests := []struct {
@@ -133,7 +133,7 @@ func TestMatrixRowAt(t *testing.T) {
 	assert := assert.New(t)
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
-	mat := NewMatrix[int](3, 3)
+	mat := newMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
 	tests := []struct {
@@ -179,7 +179,7 @@ func TestMatrixColAt(t *testing.T) {
 	assert := assert.New(t)
 
 	m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
-	mat := NewMatrix[int](3, 3)
+	mat := newMatrix[int](3, 3)
 	mat.SetMatrix(m)
 
 	tests := []struct {
